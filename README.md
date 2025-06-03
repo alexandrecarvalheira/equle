@@ -9,3 +9,17 @@
 - [x] Next.js
 - [ ] Nuxt.js
 - [ ] React (Vite)
+
+## About cofhejs
+
+[cofhejs](https://cofhe-docs.fhenix.zone/docs/devdocs/cofhejs) is a TypeScript library that enables seamless interaction with FHE-enabled smart contracts via the CoFHE service. CoFHE is a privacy-preserving computation service for EVM-compatible networks, currently supporting Ethereum Sepolia and Arbitrum Sepolia. The library handles encryption, decryption, and permit management, allowing dApps to keep user data private while leveraging fully homomorphic encryption on-chain.
+
+- **Encrypt input data** before sending to smart contracts.
+- **Create and manage permits** for secure access and decryption.
+- **Unseal and decrypt** contract outputs for user display.
+
+For more details, see the [cofhejs documentation](https://cofhe-docs.fhenix.zone/docs/devdocs/cofhejs).
+
+![CoFHE Counter Demo](cofhe-demo.png)
+
+*Example: CoFHE Counter Demo dApp using cofhejs for encrypted smart contract interactions.*
