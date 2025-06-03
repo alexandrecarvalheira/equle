@@ -7,8 +7,8 @@
 ## Available Templates
 
 - [x] Next.js
+- [x] React (Vite)
 - [ ] Nuxt.js
-- [ ] React (Vite)
 
 ## About cofhejs
 
