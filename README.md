@@ -7,5 +7,5 @@
 ## Available Templates
 
 - [x] Next.js
-- [] Nuxt.js
-- [] React (Vite)
+- [ ] Nuxt.js
+- [ ] React (Vite)
