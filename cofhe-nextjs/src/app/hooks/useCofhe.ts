@@ -198,13 +198,15 @@ export const useCofhejsActivePermitHash = () => {
 };
 
 export const useCofhejsActivePermit = () => {
+  const { chainId } = useAccount();
   const account = useCofhejsAccount();
   const initialized = useCofhejsInitialized();
   const activePermitHash = useCofhejsActivePermitHash();
 
   return useMemo(() => {
     if (!account || !initialized) return undefined;
-    return permitStore.getPermit(account, activePermitHash);
+    console.log("chainId", chainId?.toString());
+    return permitStore.getPermit(chainId?.toString(), account, activePermitHash);
   }, [account, initialized, activePermitHash]);
 };
 

@@ -94,7 +94,6 @@ export function useCofhe(config?: Partial<CofheConfig>) {
           thresholdNetworkUrl: mergedConfig.thresholdNetworkUrl,
           ignoreErrors: mergedConfig.ignoreErrors,
           generatePermit: mergedConfig.generatePermit,
-          wasmPath: "tfhe_bg.wasm",
         });
 
         if (result.success) {
