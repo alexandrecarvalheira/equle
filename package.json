@@ -1,0 +1,33 @@
+{
+  "name": "cofhe-base-miniapp",
+  "version": "1.0.0",
+  "description": "A monorepo containing templates and smart contracts for building privacy-preserving dApps using CoFHE",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:nextjs": "npm run dev --workspace=cofhe-nextjs",
+    "build": "npm run build --workspaces",
+    "build:nextjs": "npm run build --workspace=cofhe-nextjs",
+    "start:nextjs": "npm run start --workspace=cofhe-nextjs",
+    "lint": "npm run lint --workspaces",
+    "clean": "npm run clean --workspaces && rm -rf node_modules",
+    "install:all": "npm install"
+  },
+  "keywords": [
+    "cofhe",
+    "fhe",
+    "privacy",
+    "blockchain",
+    "ethereum",
+    "smart-contracts",
+    "monorepo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}
