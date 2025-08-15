@@ -1,6 +1,7 @@
 import { WalletConnect } from "./components/WalletConnect";
 import { CofheStatus } from "./components/CofheStatus";
 import { ContractInteraction } from "./components/ContractInteraction";
+import { NumberleGame } from "./components/NumberleGame";
 
 export default function Home() {
   return (
@@ -24,6 +25,10 @@ export default function Home() {
             <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
               <ContractInteraction />
             </div>
+          </div>
+
+          <div className="mt-8">
+            <NumberleGame />
           </div>
         </div>
       </div>
