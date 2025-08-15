@@ -1,0 +1,3 @@
+[submodule "fhe-assistant"]
+	path = fhe-assistant
+	url = https://github.com/marronjo/fhe-assistant.git
