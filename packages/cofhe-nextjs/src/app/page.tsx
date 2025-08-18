@@ -1,6 +1,6 @@
 import { WalletConnect } from "./components/WalletConnect";
 import { CofheStatus } from "./components/CofheStatus";
-import { ContractInteraction } from "./components/ContractInteraction";
+// import { ContractInteraction } from "./components/ContractInteraction";
 import { NumberleGame } from "./components/NumberleGame";
 
 export default function Home() {
@@ -13,7 +13,7 @@ export default function Home() {
               Numberle FHE Game Demo
             </h1>
             <p className="text-gray-600 dark:text-gray-300">
-              Find the exact mathematical expression!
+              (nothing onchain yet) Find the exact mathematical expression!
             </p>
           </header>
           {/* 

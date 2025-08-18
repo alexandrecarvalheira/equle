@@ -1,9 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Encryptable, Environment, FheTypes, Permit, cofhejs, permitStore } from "cofhejs/web";
+import {
+  Encryptable,
+  Environment,
+  FheTypes,
+  Permit,
+  cofhejs,
+  permitStore,
+} from "cofhejs/web";
 import { Address, Chain } from "viem";
-import { arbitrum, arbitrumSepolia, hardhat, mainnet, sepolia } from "viem/chains";
+import {
+  arbitrum,
+  arbitrumSepolia,
+  hardhat,
+  mainnet,
+  sepolia,
+} from "viem/chains";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { wagmiConfig } from "../wagmi.config";
 import { useCofheStore } from "../store/cofheStore";
@@ -31,12 +44,16 @@ const ChainEnvironments = {
 } as const;
 
 export const targetNetworksNoHardhat = wagmiConfig.chains.filter(
-  (network: Chain) => network.id !== hardhat.id,
+  (network: Chain) => network.id !== hardhat.id
 );
 
 export const useIsConnectedChainSupported = () => {
   const { chainId } = useAccount();
-  return useMemo(() => targetNetworksNoHardhat.some((network: Chain) => network.id === chainId), [chainId]);
+  return useMemo(
+    () =>
+      targetNetworksNoHardhat.some((network: Chain) => network.id === chainId),
+    [chainId]
+  );
 };
 
 export function useCofhe(config?: Partial<CofheConfig>) {
@@ -44,7 +61,10 @@ export function useCofhe(config?: Partial<CofheConfig>) {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const isChainSupported = useIsConnectedChainSupported();
-  const { isInitialized: globalIsInitialized, setIsInitialized: setGlobalIsInitialized } = useCofheStore();
+  const {
+    isInitialized: globalIsInitialized,
+    setIsInitialized: setGlobalIsInitialized,
+  } = useCofheStore();
 
   const chainId = publicClient?.chain.id;
   const accountAddress = walletClient?.account.address;
@@ -67,11 +87,20 @@ export function useCofhe(config?: Partial<CofheConfig>) {
     if (!isBrowser) return;
 
     const initialize = async () => {
-      if (globalIsInitialized || isInitializing || !publicClient || !walletClient || !isChainSupported) return;
+      if (
+        globalIsInitialized ||
+        isInitializing ||
+        !publicClient ||
+        !walletClient ||
+        !isChainSupported
+      )
+        return;
       try {
         setIsInitializing(true);
 
-        const environment = ChainEnvironments[chainId as keyof typeof ChainEnvironments] ?? "TESTNET";
+        const environment =
+          ChainEnvironments[chainId as keyof typeof ChainEnvironments] ??
+          "TESTNET";
 
         const defaultConfig = {
           environment,
@@ -105,7 +134,11 @@ export function useCofhe(config?: Partial<CofheConfig>) {
         }
       } catch (err) {
         console.error("Failed to initialize Cofhe:", err);
-        setError(err instanceof Error ? err : new Error("Unknown error initializing Cofhe"));
+        setError(
+          err instanceof Error
+            ? err
+            : new Error("Unknown error initializing Cofhe")
+        );
       } finally {
         setIsInitializing(false);
       }
@@ -113,7 +146,17 @@ export function useCofhe(config?: Partial<CofheConfig>) {
 
     initialize();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletClient, publicClient, config, chainId, isInitializing, accountAddress, isChainSupported, globalIsInitialized, setGlobalIsInitialized]);
+  }, [
+    walletClient,
+    publicClient,
+    config,
+    chainId,
+    isInitializing,
+    accountAddress,
+    isChainSupported,
+    globalIsInitialized,
+    setGlobalIsInitialized,
+  ]);
 
   return {
     isInitialized: globalIsInitialized,
@@ -131,14 +174,20 @@ export const useCofhejsInitialized = () => {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = cofhejs.store.subscribe(state =>
-      setInitialized(state.providerInitialized && state.signerInitialized && state.fheKeysInitialized),
+    const unsubscribe = cofhejs.store.subscribe((state) =>
+      setInitialized(
+        state.providerInitialized &&
+          state.signerInitialized &&
+          state.fheKeysInitialized
+      )
     );
 
     // Initial state
     const initialState = cofhejs.store.getState();
     setInitialized(
-      initialState.providerInitialized && initialState.signerInitialized && initialState.fheKeysInitialized,
+      initialState.providerInitialized &&
+        initialState.signerInitialized &&
+        initialState.fheKeysInitialized
     );
 
     return () => {
@@ -153,7 +202,7 @@ export const useCofhejsAccount = () => {
   const [account, setAccount] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = cofhejs.store.subscribe(state => {
+    const unsubscribe = cofhejs.store.subscribe((state) => {
       setAccount(state.account);
     });
 
@@ -169,15 +218,17 @@ export const useCofhejsAccount = () => {
 };
 
 export const useCofhejsActivePermitHashes = () => {
-  const [activePermitHash, setActivePermitHash] = useState<Record<Address, string | undefined>>({});
+  const [activePermitHash, setActivePermitHash] = useState<
+    Record<Address, string | undefined>
+  >({});
 
   useEffect(() => {
-    const unsubscribe = permitStore.store.subscribe(state => {
+    const unsubscribe = permitStore.store.subscribe((state) => {
       const hash = state.activePermitHash;
-      setActivePermitHash(hash);
+      setActivePermitHash(hash as any); // TODO: fix this
     });
 
-    setActivePermitHash(permitStore.store.getState().activePermitHash);
+    setActivePermitHash(permitStore.store.getState().activePermitHash as any); // TODO: fix this
 
     return () => {
       unsubscribe();
@@ -206,7 +257,11 @@ export const useCofhejsActivePermit = () => {
   return useMemo(() => {
     if (!account || !initialized) return undefined;
     console.log("chainId", chainId?.toString());
-    return permitStore.getPermit(chainId?.toString(), account, activePermitHash);
+    return permitStore.getPermit(
+      chainId?.toString(),
+      account,
+      activePermitHash
+    );
   }, [account, initialized, activePermitHash]);
 };
 
