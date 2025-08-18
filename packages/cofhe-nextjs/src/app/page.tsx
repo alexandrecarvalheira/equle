@@ -10,22 +10,22 @@ export default function Home() {
         <div className="max-w-2xl mx-auto space-y-6">
           <header className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              CoFHE Counter Demo
+              Numberle FHE Game Demo
             </h1>
             <p className="text-gray-600 dark:text-gray-300">
-              Interact with an encrypted counter smart contract
+              Find the exact mathematical expression!
             </p>
           </header>
-
+          {/* 
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 space-y-6">
             <CofheStatus />
             <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
               <WalletConnect />
             </div>
             <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-              {/* <ContractInteraction /> */}
+              <ContractInteraction />
             </div>
-          </div>
+          </div> */}
 
           <div className="mt-8">
             <NumberleGame />

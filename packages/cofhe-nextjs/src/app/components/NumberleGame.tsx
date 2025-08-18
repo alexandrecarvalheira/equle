@@ -12,6 +12,24 @@ interface Tile {
 const EQUATION_LENGTH = 5;
 const MAX_ATTEMPTS = 6;
 
+const EQUATION_POOL = [
+  { equation: "8*6-2", result: 46 },
+  { equation: "4+3*5", result: 19 },
+  { equation: "9/3+7", result: 10 },
+  { equation: "2*8-1", result: 15 },
+  { equation: "6+4*2", result: 14 },
+  { equation: "15/3+2", result: 7 },
+  { equation: "7*2+3", result: 17 },
+  { equation: "12-3*2", result: 6 },
+  { equation: "5*4-8", result: 12 },
+  { equation: "18/2-1", result: 8 }
+];
+
+const getRandomEquation = () => {
+  const randomIndex = Math.floor(Math.random() * EQUATION_POOL.length);
+  return EQUATION_POOL[randomIndex];
+};
+
 const initializeBoard = (): Tile[][] => {
   const newBoard: Tile[][] = [];
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
@@ -32,8 +50,7 @@ export function NumberleGame() {
     "playing"
   );
   const [showRules, setShowRules] = useState(false);
-  const [targetEquation] = useState("8*6-2");
-  const [targetResult] = useState(46);
+  const [currentEquationData, setCurrentEquationData] = useState(() => getRandomEquation());
   const [resultFeedback, setResultFeedback] = useState<string[]>([]);
   const [rowResults, setRowResults] = useState<(number | null)[]>(
     new Array(MAX_ATTEMPTS).fill(null)
@@ -41,6 +58,7 @@ export function NumberleGame() {
   const [rowFeedback, setRowFeedback] = useState<string[]>(
     new Array(MAX_ATTEMPTS).fill("")
   );
+  const [keyboardStatus, setKeyboardStatus] = useState<Record<string, TileState>>({});
 
   const isValidExpression = (expression: string): boolean => {
     if (expression.length !== EQUATION_LENGTH) return false;
@@ -105,11 +123,11 @@ export function NumberleGame() {
     // Provide Wordle-style feedback: exact position match vs presence
     for (let i = 0; i < EQUATION_LENGTH; i++) {
       const guessChar = currentGuess[i];
-      const targetChar = targetEquation[i];
+      const targetChar = currentEquationData.equation[i];
 
       if (guessChar === targetChar) {
         newBoard[currentRow][i].state = "correct";
-      } else if (targetEquation.includes(guessChar)) {
+      } else if (currentEquationData.equation.includes(guessChar)) {
         newBoard[currentRow][i].state = "present";
       } else {
         newBoard[currentRow][i].state = "absent";
@@ -117,6 +135,23 @@ export function NumberleGame() {
     }
 
     setBoard(newBoard);
+
+    // Update keyboard status based on feedback
+    const newKeyboardStatus = { ...keyboardStatus };
+    for (let i = 0; i < EQUATION_LENGTH; i++) {
+      const guessChar = currentGuess[i];
+      const currentStatus = newKeyboardStatus[guessChar];
+      const newStatus = newBoard[currentRow][i].state;
+      
+      // Only update if the new status is "better" than the current one
+      // Priority: correct > present > absent
+      if (!currentStatus || 
+          (currentStatus === "absent" && (newStatus === "present" || newStatus === "correct")) ||
+          (currentStatus === "present" && newStatus === "correct")) {
+        newKeyboardStatus[guessChar] = newStatus;
+      }
+    }
+    setKeyboardStatus(newKeyboardStatus);
 
     // Store the result for this row
     const newRowResults = [...rowResults];
@@ -128,19 +163,19 @@ export function NumberleGame() {
     const newFeedback = [...resultFeedback];
 
     // Check for exact equation match (win condition)
-    if (currentGuess === targetEquation) {
+    if (currentGuess === currentEquationData.equation) {
       newFeedback.push("🎉 Perfect! You found the exact equation!");
       newRowFeedback[currentRow] = "🎉 Exact match!";
       setGameStatus("won");
     } else {
       // Provide result comparison as a helper clue
-      if (guessResult === targetResult) {
+      if (guessResult === currentEquationData.result) {
         newFeedback.push("🎯 Right result, wrong equation!");
         newRowFeedback[currentRow] = "🎯 Right result";
-      } else if (guessResult < targetResult) {
+      } else if (guessResult < currentEquationData.result) {
         newFeedback.push("📈 Your result is too low");
         newRowFeedback[currentRow] = "📈 Too low";
-      } else if (guessResult > targetResult) {
+      } else if (guessResult > currentEquationData.result) {
         newFeedback.push("📉 Your result is too high");
         newRowFeedback[currentRow] = "📉 Too high";
       } else {
@@ -152,9 +187,9 @@ export function NumberleGame() {
     setResultFeedback(newFeedback);
     setRowFeedback(newRowFeedback);
 
-    if (currentGuess !== targetEquation && currentRow === MAX_ATTEMPTS - 1) {
+    if (currentGuess !== currentEquationData.equation && currentRow === MAX_ATTEMPTS - 1) {
       setGameStatus("lost");
-    } else if (currentGuess !== targetEquation) {
+    } else if (currentGuess !== currentEquationData.equation) {
       setCurrentRow(currentRow + 1);
       setCurrentCol(0);
     }
@@ -168,6 +203,8 @@ export function NumberleGame() {
     setRowResults(new Array(MAX_ATTEMPTS).fill(null));
     setRowFeedback(new Array(MAX_ATTEMPTS).fill(""));
     setBoard(initializeBoard());
+    setCurrentEquationData(getRandomEquation());
+    setKeyboardStatus({});
   };
 
   const getTileStyle = (state: TileState): string => {
@@ -180,6 +217,22 @@ export function NumberleGame() {
         return "bg-gray-500 text-white border-gray-500";
       default:
         return "bg-white text-black border-gray-300";
+    }
+  };
+
+  const getKeyboardKeyStyle = (key: string): string => {
+    const status = keyboardStatus[key];
+    const baseStyle = "w-8 h-10 rounded text-sm font-semibold transition-colors duration-200";
+    
+    switch (status) {
+      case "correct":
+        return `${baseStyle} bg-green-500 text-white hover:bg-green-600`;
+      case "present":
+        return `${baseStyle} bg-yellow-500 text-white hover:bg-yellow-600`;
+      case "absent":
+        return `${baseStyle} bg-gray-500 text-white hover:bg-gray-600`;
+      default:
+        return `${baseStyle} bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200`;
     }
   };
 
@@ -196,7 +249,7 @@ export function NumberleGame() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [board, currentRow, currentCol, gameStatus, targetResult, resultFeedback]);
+  }, [board, currentRow, currentCol, gameStatus, currentEquationData.result, resultFeedback]);
 
   return (
     <div className="max-w-lg mx-auto p-4 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
@@ -297,9 +350,7 @@ export function NumberleGame() {
             <button
               key={key}
               onClick={() => handleVirtualKeyboard(key)}
-              className="w-8 h-10 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 
-                         rounded text-sm font-semibold text-gray-800 dark:text-gray-200 
-                         transition-colors duration-200"
+              className={getKeyboardKeyStyle(key)}
             >
               {key}
             </button>
@@ -310,9 +361,7 @@ export function NumberleGame() {
             <button
               key={key}
               onClick={() => handleVirtualKeyboard(key)}
-              className="w-8 h-10 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 
-                         rounded text-sm font-semibold text-gray-800 dark:text-gray-200 
-                         transition-colors duration-200"
+              className={getKeyboardKeyStyle(key)}
             >
               {key}
             </button>
@@ -346,8 +395,8 @@ export function NumberleGame() {
               </p>
             ) : (
               <p className="text-red-600 dark:text-red-400 text-lg font-semibold">
-                😔 Game over! The equation was: {targetEquation} ={" "}
-                {targetResult}
+                😔 Game over! The equation was: {currentEquationData.equation} ={" "}
+                {currentEquationData.result}
               </p>
             )}
           </div>
