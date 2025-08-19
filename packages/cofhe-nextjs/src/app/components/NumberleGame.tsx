@@ -55,12 +55,8 @@ export function NumberleGame() {
   const [currentEquationData, setCurrentEquationData] = useState(() =>
     getRandomEquation()
   );
-  const [resultFeedback, setResultFeedback] = useState<string[]>([]);
   const [rowResults, setRowResults] = useState<(number | null)[]>(
     new Array(MAX_ATTEMPTS).fill(null)
-  );
-  const [rowFeedback, setRowFeedback] = useState<string[]>(
-    new Array(MAX_ATTEMPTS).fill("")
   );
   const [keyboardStatus, setKeyboardStatus] = useState<
     Record<string, TileState>
@@ -176,34 +172,10 @@ export function NumberleGame() {
     newRowResults[currentRow] = guessResult;
     setRowResults(newRowResults);
 
-    // Provide higher/lower feedback based on result
-    const newRowFeedback = [...rowFeedback];
-    const newFeedback = [...resultFeedback];
-
     // Check for exact equation match (win condition)
     if (currentGuess === currentEquationData.equation) {
-      newFeedback.push("🎉 Perfect! You found the exact equation!");
-      newRowFeedback[currentRow] = "🎉 Exact match!";
       setGameStatus("won");
-    } else {
-      // Provide result comparison as a helper clue
-      if (guessResult === currentEquationData.result) {
-        newFeedback.push("🎯 Right result, wrong equation!");
-        newRowFeedback[currentRow] = "🎯 Right result";
-      } else if (guessResult < currentEquationData.result) {
-        newFeedback.push("📈 Your result is too low");
-        newRowFeedback[currentRow] = "📈 Too low";
-      } else if (guessResult > currentEquationData.result) {
-        newFeedback.push("📉 Your result is too high");
-        newRowFeedback[currentRow] = "📉 Too high";
-      } else {
-        newFeedback.push("❌ Invalid expression");
-        newRowFeedback[currentRow] = "❌ Invalid";
-      }
     }
-
-    setResultFeedback(newFeedback);
-    setRowFeedback(newRowFeedback);
 
     if (
       currentGuess !== currentEquationData.equation &&
@@ -220,9 +192,7 @@ export function NumberleGame() {
     setCurrentRow(0);
     setCurrentCol(0);
     setGameStatus("playing");
-    setResultFeedback([]);
     setRowResults(new Array(MAX_ATTEMPTS).fill(null));
-    setRowFeedback(new Array(MAX_ATTEMPTS).fill(""));
     setBoard(initializeBoard());
     setCurrentEquationData(getRandomEquation());
     setKeyboardStatus({});
@@ -258,6 +228,39 @@ export function NumberleGame() {
     }
   };
 
+  const getResultTileStyle = (rowIndex: number): string => {
+    const result = rowResults[rowIndex];
+    const baseStyle = "w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300";
+    
+    if (result === null) {
+      return `${baseStyle} bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-300 dark:border-gray-600`;
+    }
+    
+    if (result === currentEquationData.result) {
+      return `${baseStyle} bg-green-500 text-white border-green-500`;
+    } else if (result < currentEquationData.result) {
+      // Too low - blue/cyan colors
+      return `${baseStyle} bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 border-blue-300 dark:border-blue-700`;
+    } else {
+      // Too high - red/orange colors
+      return `${baseStyle} bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700`;
+    }
+  };
+
+  const getResultDisplay = (rowIndex: number): { value: string; arrow: string } => {
+    const result = rowResults[rowIndex];
+    if (result === null) return { value: "", arrow: "" };
+    
+    const value = result.toString();
+    let arrow = "";
+    
+    if (result !== currentEquationData.result) {
+      arrow = result < currentEquationData.result ? "↑" : "↓";
+    }
+    
+    return { value, arrow };
+  };
+
   const handleVirtualKeyboard = (key: string) => {
     handleKeyPress(key);
   };
@@ -277,7 +280,6 @@ export function NumberleGame() {
     currentCol,
     gameStatus,
     currentEquationData.result,
-    resultFeedback,
   ]);
 
   return (
@@ -303,74 +305,88 @@ export function NumberleGame() {
           {board.map((row, rowIndex) => (
             <div
               key={rowIndex}
-              className="grid grid-cols-5 gap-2 justify-center"
+              className="flex gap-2 items-center"
             >
-              {row.map((tile, colIndex) => (
-                <div
-                  key={colIndex}
-                  className={`
-                    w-12 h-12 border-2 rounded flex items-center justify-center
-                    text-lg font-bold transition-colors duration-300
-                    ${getTileStyle(tile.state)}
-                    ${
-                      rowIndex === currentRow && colIndex === currentCol
-                        ? "ring-2 ring-blue-500"
-                        : ""
-                    }
-                  `}
-                >
-                  {tile.value}
+              <div className="grid grid-cols-5 gap-2">
+                {row.map((tile, colIndex) => (
+                  <div
+                    key={colIndex}
+                    className={`
+                      w-12 h-12 border-2 rounded flex items-center justify-center
+                      text-lg font-bold transition-colors duration-300
+                      ${getTileStyle(tile.state)}
+                      ${
+                        rowIndex === currentRow && colIndex === currentCol
+                          ? "ring-2 ring-blue-500"
+                          : ""
+                      }
+                    `}
+                  >
+                    {tile.value}
+                  </div>
+                ))}
+              </div>
+              
+              {/* Equals sign - always visible */}
+              <span className="text-lg font-bold text-gray-600 dark:text-gray-300 mx-1">
+                =
+              </span>
+              
+              {/* Result tile - always visible */}
+              <div className={getResultTileStyle(rowIndex)}>
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-sm font-bold">{getResultDisplay(rowIndex).value}</span>
+                  {getResultDisplay(rowIndex).arrow && (
+                    <span className="text-xs">{getResultDisplay(rowIndex).arrow}</span>
+                  )}
                 </div>
-              ))}
+              </div>
             </div>
           ))}
+          
+          {/* Solution section - only shown when game is lost */}
+          {gameStatus === "lost" && (
+            <div className="mt-4 pt-4 border-t-2 border-gray-300 dark:border-gray-600">
+              {/* Solution label */}
+              <div className="text-center mb-2">
+                <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                  💡 Solution
+                </span>
+              </div>
+              
+              {/* Solution row */}
+              <div className="flex gap-2 items-center">
+                <div className="grid grid-cols-5 gap-2">
+                  {currentEquationData.equation.split('').map((char, colIndex) => (
+                    <div
+                      key={colIndex}
+                      className="w-12 h-12 border-2 rounded flex items-center justify-center
+                                 text-lg font-bold transition-colors duration-300
+                                 bg-purple-500 text-white border-purple-600
+                                 shadow-lg"
+                    >
+                      {char}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Solution equals sign */}
+                <span className="text-lg font-bold text-purple-600 dark:text-purple-400 mx-1">
+                  =
+                </span>
+                
+                {/* Solution result tile */}
+                <div className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold
+                                bg-purple-500 text-white border-purple-600
+                                shadow-lg">
+                  {currentEquationData.result}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Results and Feedback */}
-      <div className="mb-6 space-y-2">
-        {board.map(
-          (row, rowIndex) =>
-            rowResults[rowIndex] !== null && (
-              <div
-                key={rowIndex}
-                className="flex items-center justify-center gap-4 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg"
-              >
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Row {rowIndex + 1}:
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-lg font-mono bg-white dark:bg-gray-600 px-3 py-1 rounded border">
-                    {row.map((tile: any) => tile.value).join("")} ={" "}
-                    {rowResults[rowIndex]}
-                  </div>
-                  <div className="text-sm font-medium px-2 py-1 rounded bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                    {rowFeedback[rowIndex]}
-                  </div>
-                </div>
-              </div>
-            )
-        )}
-      </div>
-
-      {/* Result Feedback */}
-      {resultFeedback.length > 0 && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            Feedback:
-          </h3>
-          <div className="space-y-1">
-            {resultFeedback.map((feedback, index) => (
-              <div
-                key={index}
-                className="text-sm text-gray-600 dark:text-gray-400"
-              >
-                {feedback}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Virtual Keyboard */}
       <div className="space-y-2">
@@ -414,21 +430,9 @@ export function NumberleGame() {
         </div>
       </div>
 
-      {/* Game Status */}
+      {/* Play Again Button - shown when game is over */}
       {gameStatus !== "playing" && (
         <div className="mt-6 text-center">
-          <div className="mb-4">
-            {gameStatus === "won" ? (
-              <p className="text-green-600 dark:text-green-400 text-lg font-semibold">
-                🎉 Perfect! You found the exact equation!
-              </p>
-            ) : (
-              <p className="text-red-600 dark:text-red-400 text-lg font-semibold">
-                😔 Game over! The equation was: {currentEquationData.equation} ={" "}
-                {currentEquationData.result}
-              </p>
-            )}
-          </div>
           <button
             onClick={resetGame}
             className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold
