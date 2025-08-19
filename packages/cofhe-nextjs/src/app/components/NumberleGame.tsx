@@ -18,11 +18,13 @@ const EQUATION_POOL = [
   { equation: "9/3+7", result: 10 },
   { equation: "2*8-1", result: 15 },
   { equation: "6+4*2", result: 14 },
-  { equation: "15/3+2", result: 7 },
+  { equation: "30/15", result: 2 },
   { equation: "7*2+3", result: 17 },
-  { equation: "12-3*2", result: 6 },
+  { equation: "32-12", result: 20 },
   { equation: "5*4-8", result: 12 },
-  { equation: "18/2-1", result: 8 }
+  { equation: "89-43", result: 46 },
+  { equation: "247+9", result: 256 },
+  { equation: "873*1", result: 873 },
 ];
 
 const getRandomEquation = () => {
@@ -50,7 +52,9 @@ export function NumberleGame() {
     "playing"
   );
   const [showRules, setShowRules] = useState(false);
-  const [currentEquationData, setCurrentEquationData] = useState(() => getRandomEquation());
+  const [currentEquationData, setCurrentEquationData] = useState(() =>
+    getRandomEquation()
+  );
   const [resultFeedback, setResultFeedback] = useState<string[]>([]);
   const [rowResults, setRowResults] = useState<(number | null)[]>(
     new Array(MAX_ATTEMPTS).fill(null)
@@ -58,11 +62,18 @@ export function NumberleGame() {
   const [rowFeedback, setRowFeedback] = useState<string[]>(
     new Array(MAX_ATTEMPTS).fill("")
   );
-  const [keyboardStatus, setKeyboardStatus] = useState<Record<string, TileState>>({});
+  const [keyboardStatus, setKeyboardStatus] = useState<
+    Record<string, TileState>
+  >({});
+
+  const hasAtLeastOneOperation = (expression: string): boolean => {
+    return /[+\-*/]/.test(expression);
+  };
 
   const isValidExpression = (expression: string): boolean => {
     if (expression.length !== EQUATION_LENGTH) return false;
     if (expression.includes("=")) return false;
+    if (!hasAtLeastOneOperation(expression)) return false;
 
     try {
       // Check if it's a valid mathematical expression
@@ -113,7 +124,11 @@ export function NumberleGame() {
       .join("");
 
     if (!isValidExpression(currentGuess)) {
-      alert("Please enter a valid expression");
+      if (!hasAtLeastOneOperation(currentGuess)) {
+        alert("Please include at least one operation (+, -, *, /)");
+      } else {
+        alert("Please enter a valid mathematical expression");
+      }
       return;
     }
 
@@ -142,12 +157,15 @@ export function NumberleGame() {
       const guessChar = currentGuess[i];
       const currentStatus = newKeyboardStatus[guessChar];
       const newStatus = newBoard[currentRow][i].state;
-      
+
       // Only update if the new status is "better" than the current one
       // Priority: correct > present > absent
-      if (!currentStatus || 
-          (currentStatus === "absent" && (newStatus === "present" || newStatus === "correct")) ||
-          (currentStatus === "present" && newStatus === "correct")) {
+      if (
+        !currentStatus ||
+        (currentStatus === "absent" &&
+          (newStatus === "present" || newStatus === "correct")) ||
+        (currentStatus === "present" && newStatus === "correct")
+      ) {
         newKeyboardStatus[guessChar] = newStatus;
       }
     }
@@ -187,7 +205,10 @@ export function NumberleGame() {
     setResultFeedback(newFeedback);
     setRowFeedback(newRowFeedback);
 
-    if (currentGuess !== currentEquationData.equation && currentRow === MAX_ATTEMPTS - 1) {
+    if (
+      currentGuess !== currentEquationData.equation &&
+      currentRow === MAX_ATTEMPTS - 1
+    ) {
       setGameStatus("lost");
     } else if (currentGuess !== currentEquationData.equation) {
       setCurrentRow(currentRow + 1);
@@ -222,8 +243,9 @@ export function NumberleGame() {
 
   const getKeyboardKeyStyle = (key: string): string => {
     const status = keyboardStatus[key];
-    const baseStyle = "w-8 h-10 rounded text-sm font-semibold transition-colors duration-200";
-    
+    const baseStyle =
+      "w-8 h-10 rounded text-sm font-semibold transition-colors duration-200";
+
     switch (status) {
       case "correct":
         return `${baseStyle} bg-green-500 text-white hover:bg-green-600`;
@@ -249,7 +271,14 @@ export function NumberleGame() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [board, currentRow, currentCol, gameStatus, currentEquationData.result, resultFeedback]);
+  }, [
+    board,
+    currentRow,
+    currentCol,
+    gameStatus,
+    currentEquationData.result,
+    resultFeedback,
+  ]);
 
   return (
     <div className="max-w-lg mx-auto p-4 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
