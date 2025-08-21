@@ -3,17 +3,14 @@
   "version": "1.0.0",
   "description": "A monorepo containing templates and smart contracts for building privacy-preserving dApps using CoFHE",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
-    "dev:nextjs": "npm run dev --workspace=cofhe-nextjs",
-    "build": "npm run build --workspaces",
-    "build:nextjs": "npm run build --workspace=cofhe-nextjs",
-    "start:nextjs": "npm run start --workspace=cofhe-nextjs",
-    "lint": "npm run lint --workspaces",
-    "clean": "npm run clean --workspaces && rm -rf node_modules",
-    "install:all": "npm install"
+    "dev:nextjs": "cd packages/cofhe-nextjs && npm run dev",
+    "build:nextjs": "cd packages/cofhe-nextjs && npm run build",
+    "start:nextjs": "cd packages/cofhe-nextjs && npm run start",
+    "build:foundry": "cd packages/foundry && forge build",
+    "test:foundry": "cd packages/foundry && forge test",
+    "clean": "rm -rf node_modules && cd packages/cofhe-nextjs && rm -rf node_modules && cd ../foundry && rm -rf node_modules",
+    "install:all": "npm install && cd packages/cofhe-nextjs && npm install && cd ../foundry && npm install"
   },
   "keywords": [
     "cofhe",
@@ -29,5 +26,8 @@
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@fhenixprotocol/cofhe-contracts": "^0.0.13"
   }
 }
