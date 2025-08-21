@@ -10,10 +10,10 @@ export default function Home() {
         <div className="max-w-2xl mx-auto space-y-6">
           <header className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Numberle FHE Game Demo
+              (Equ*le)
             </h1>
             <p className="text-gray-600 dark:text-gray-300">
-              (nothing onchain yet) Find the exact mathematical expression!
+              Find the exact mathematical expression!
             </p>
           </header>
           {/* 
