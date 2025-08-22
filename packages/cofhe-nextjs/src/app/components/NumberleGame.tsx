@@ -244,10 +244,10 @@ export function NumberleGame() {
       return `${baseStyle} bg-green-500 text-white border-green-500`;
     } else if (result < currentEquationData.result) {
       // Too low - blue/cyan colors
-      return `${baseStyle} bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 border-blue-300 dark:border-blue-700`;
+      return `${baseStyle} bg-cyan-400 text-white border-cyan-400`;
     } else {
       // Too high - red/orange colors
-      return `${baseStyle} bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700`;
+      return `${baseStyle} bg-red-400 text-white border-red-400`;
     }
   };
 
@@ -257,7 +257,7 @@ export function NumberleGame() {
     const result = rowResults[rowIndex];
     if (result === null) return { value: "", arrow: "" };
 
-    const value = result.toString();
+    const value = Number.isInteger(result) ? result.toString() : result.toFixed(2);
     let arrow = "";
 
     if (result !== currentEquationData.result) {
@@ -296,24 +296,22 @@ export function NumberleGame() {
   }, [board, currentRow, currentCol, gameStatus, currentEquationData.result]);
 
   return (
-    <div className="max-w-lg mx-auto p-4 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          Numberle
-        </h2>
-        <p className="text-gray-600 dark:text-gray-300 text-sm">
-          Find the exact mathematical expression!
-        </p>
+    <div
+      className="max-w-lg mx-auto p-4 rounded-xl shadow-lg relative"
+      style={{ backgroundColor: "#122531" }}
+    >
+      <div className="text-center mb-6 relative z-10">
         <button
           onClick={() => setShowRules(true)}
-          className="mt-2 text-blue-500 hover:text-blue-600 text-sm underline"
+          className="mt-2 text-sm underline hover:opacity-80"
+          style={{ color: "#0AD9DC" }}
         >
           How to play
         </button>
       </div>
 
       {/* Game Board */}
-      <div className="flex justify-center mb-6">
+      <div className="flex justify-center mb-6 relative z-10">
         <div className="grid gap-2">
           {board.map((row, rowIndex) => (
             <div key={rowIndex} className="flex gap-2 items-center">
@@ -332,7 +330,10 @@ export function NumberleGame() {
                       }
                     `}
                   >
-                    {tile.value}
+                    {tile.value ||
+                      (tile.state === "empty" && rowIndex >= currentRow
+                        ? ""
+                        : "")}
                   </div>
                 ))}
               </div>
@@ -380,8 +381,8 @@ export function NumberleGame() {
             <div className="mt-4 pt-4 border-t-2 border-gray-300 dark:border-gray-600">
               {/* Solution label */}
               <div className="text-center mb-2">
-                <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
-                  💡 Solution
+                <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                  * Solution
                 </span>
               </div>
 
@@ -393,10 +394,7 @@ export function NumberleGame() {
                     .map((char, colIndex) => (
                       <div
                         key={colIndex}
-                        className="w-12 h-12 border-2 rounded flex items-center justify-center
-                                 text-lg font-bold transition-colors duration-300
-                                 bg-purple-500 text-white border-purple-600
-                                 shadow-lg"
+                        className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300 bg-gray-600 text-white border-gray-600 shadow-lg"
                       >
                         {char}
                       </div>
@@ -404,16 +402,12 @@ export function NumberleGame() {
                 </div>
 
                 {/* Solution equals sign */}
-                <span className="text-lg font-bold text-purple-600 dark:text-purple-400 mx-1">
+                <span className="text-lg font-bold text-gray-600 dark:text-gray-400 mx-1">
                   =
                 </span>
 
                 {/* Solution result tile */}
-                <div
-                  className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold
-                                bg-purple-500 text-white border-purple-600
-                                shadow-lg"
-                >
+                <div className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold bg-gray-600 text-white border-gray-600 shadow-lg">
                   {currentEquationData.result}
                 </div>
               </div>
@@ -423,7 +417,7 @@ export function NumberleGame() {
       </div>
 
       {/* Virtual Keyboard */}
-      <div className="space-y-2">
+      <div className="space-y-2 relative z-10">
         <div className="flex gap-1 justify-center">
           {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((key) => (
             <button
@@ -449,8 +443,8 @@ export function NumberleGame() {
         <div className="flex gap-2 justify-center mt-4">
           <button
             onClick={() => handleVirtualKeyboard("Enter")}
-            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold
-                       transition-colors duration-200"
+            className="px-4 py-2 text-white rounded font-semibold transition-colors duration-200 hover:opacity-80"
+            style={{ backgroundColor: "#0AD9DC" }}
           >
             Enter
           </button>
@@ -466,11 +460,11 @@ export function NumberleGame() {
 
       {/* Play Again Button - shown when game is over */}
       {gameStatus !== "playing" && (
-        <div className="mt-6 text-center">
+        <div className="mt-6 text-center relative z-10">
           <button
             onClick={resetGame}
-            className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold
-                       transition-colors duration-200"
+            className="px-6 py-2 text-white rounded-lg font-semibold transition-colors duration-200 hover:opacity-80"
+            style={{backgroundColor: '#0AD9DC'}}
           >
             Play Again
           </button>
@@ -528,7 +522,13 @@ export function NumberleGame() {
                       <span>Green: Your result matches exactly!</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-blue-100 border border-blue-300 rounded flex items-center justify-center text-blue-800 text-xs font-bold">
+                      <div
+                        className="w-6 h-6 border rounded flex items-center justify-center text-white text-xs font-bold"
+                        style={{
+                          backgroundColor: "#0AD9DC",
+                          borderColor: "#0AD9DC",
+                        }}
+                      >
                         ↑
                       </div>
                       <span>
@@ -556,8 +556,8 @@ export function NumberleGame() {
             </div>
             <button
               onClick={() => setShowRules(false)}
-              className="mt-4 w-full py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold
-                         transition-colors duration-200"
+              className="mt-4 w-full py-2 text-white rounded font-semibold transition-colors duration-200 hover:opacity-80"
+              style={{ backgroundColor: "#0AD9DC" }}
             >
               Got it!
             </button>
