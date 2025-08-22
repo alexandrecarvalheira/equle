@@ -1,11 +1,25 @@
+"use client";
 import { WalletConnect } from "./components/WalletConnect";
 import { CofheStatus } from "./components/CofheStatus";
 // import { ContractInteraction } from "./components/ContractInteraction";
 import { NumberleGame } from "./components/NumberleGame";
+import { useMiniKit } from "@coinbase/onchainkit/minikit";
+import { ConnectWallet, Wallet } from "@coinbase/onchainkit/wallet";
+import { useEffect } from "react";
+import { Name } from "@coinbase/onchainkit/identity";
 
 export default function Home() {
+  const { setFrameReady, isFrameReady } = useMiniKit();
+
+  useEffect(() => {
+    if (!isFrameReady) {
+      setFrameReady();
+    }
+    console.log("isFrameReady", isFrameReady);
+  }, [isFrameReady, setFrameReady]);
+
   return (
-    <div className="min-h-screen" style={{backgroundColor: '#011623'}}>
+    <div className="min-h-screen" style={{ backgroundColor: "#011623" }}>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto space-y-6">
           <header className="text-center mb-8">
@@ -18,16 +32,20 @@ export default function Home() {
               Find the exact mathematical expression!
             </p>
           </header>
-          {/* 
+
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 space-y-6">
             <CofheStatus />
             <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-              <WalletConnect />
+              <Wallet>
+                <ConnectWallet>
+                  <Name />
+                </ConnectWallet>
+              </Wallet>
             </div>
             <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-              <ContractInteraction />
+              {/* <ContractInteraction /> */}
             </div>
-          </div> */}
+          </div>
 
           <div className="mt-8">
             <NumberleGame />
