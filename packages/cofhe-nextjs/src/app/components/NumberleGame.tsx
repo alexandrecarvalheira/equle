@@ -17,7 +17,7 @@ const EQUATION_POOL = [
   { equation: "4+3*5", result: 19 },
   { equation: "9/3+7", result: 10 },
   { equation: "2*8-1", result: 15 },
-  { equation: "6+4*2", result: 14 },
+  { equation: "6+4*2", result: 20 },
   { equation: "30/15", result: 2 },
   { equation: "7*2+3", result: 17 },
   { equation: "32-12", result: 20 },
@@ -61,6 +61,9 @@ export function NumberleGame() {
   const [keyboardStatus, setKeyboardStatus] = useState<
     Record<string, TileState>
   >({});
+  const [hoveredResultTile, setHoveredResultTile] = useState<number | null>(
+    null
+  );
 
   const hasAtLeastOneOperation = (expression: string): boolean => {
     return /[+\-*/]/.test(expression);
@@ -230,12 +233,13 @@ export function NumberleGame() {
 
   const getResultTileStyle = (rowIndex: number): string => {
     const result = rowResults[rowIndex];
-    const baseStyle = "w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300";
-    
+    const baseStyle =
+      "w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300";
+
     if (result === null) {
       return `${baseStyle} bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-300 dark:border-gray-600`;
     }
-    
+
     if (result === currentEquationData.result) {
       return `${baseStyle} bg-green-500 text-white border-green-500`;
     } else if (result < currentEquationData.result) {
@@ -247,18 +251,33 @@ export function NumberleGame() {
     }
   };
 
-  const getResultDisplay = (rowIndex: number): { value: string; arrow: string } => {
+  const getResultDisplay = (
+    rowIndex: number
+  ): { value: string; arrow: string } => {
     const result = rowResults[rowIndex];
     if (result === null) return { value: "", arrow: "" };
-    
+
     const value = result.toString();
     let arrow = "";
-    
+
     if (result !== currentEquationData.result) {
       arrow = result < currentEquationData.result ? "↑" : "↓";
     }
-    
+
     return { value, arrow };
+  };
+
+  const getResultTooltip = (rowIndex: number): string => {
+    const result = rowResults[rowIndex];
+    if (result === null) return "Result will appear here";
+
+    if (result === currentEquationData.result) {
+      return "Perfect! Your result matches the target";
+    } else if (result < currentEquationData.result) {
+      return `Too low. Try a higher result.`;
+    } else {
+      return `Too high. Try a lower result.`;
+    }
   };
 
   const handleVirtualKeyboard = (key: string) => {
@@ -274,13 +293,7 @@ export function NumberleGame() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [
-    board,
-    currentRow,
-    currentCol,
-    gameStatus,
-    currentEquationData.result,
-  ]);
+  }, [board, currentRow, currentCol, gameStatus, currentEquationData.result]);
 
   return (
     <div className="max-w-lg mx-auto p-4 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
@@ -303,10 +316,7 @@ export function NumberleGame() {
       <div className="flex justify-center mb-6">
         <div className="grid gap-2">
           {board.map((row, rowIndex) => (
-            <div
-              key={rowIndex}
-              className="flex gap-2 items-center"
-            >
+            <div key={rowIndex} className="flex gap-2 items-center">
               <div className="grid grid-cols-5 gap-2">
                 {row.map((tile, colIndex) => (
                   <div
@@ -326,24 +336,45 @@ export function NumberleGame() {
                   </div>
                 ))}
               </div>
-              
+
               {/* Equals sign - always visible */}
               <span className="text-lg font-bold text-gray-600 dark:text-gray-300 mx-1">
                 =
               </span>
-              
+
               {/* Result tile - always visible */}
-              <div className={getResultTileStyle(rowIndex)}>
-                <div className="flex flex-col items-center justify-center">
-                  <span className="text-sm font-bold">{getResultDisplay(rowIndex).value}</span>
-                  {getResultDisplay(rowIndex).arrow && (
-                    <span className="text-xs">{getResultDisplay(rowIndex).arrow}</span>
-                  )}
+              <div className="relative">
+                <div
+                  className={getResultTileStyle(rowIndex)}
+                  onMouseEnter={() => setHoveredResultTile(rowIndex)}
+                  onMouseLeave={() => setHoveredResultTile(null)}
+                >
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-sm font-bold">
+                      {getResultDisplay(rowIndex).value}
+                    </span>
+                    {getResultDisplay(rowIndex).arrow && (
+                      <span className="text-xs">
+                        {getResultDisplay(rowIndex).arrow}
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {/* Custom tooltip */}
+                {hoveredResultTile === rowIndex &&
+                  rowResults[rowIndex] !== null && (
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-10">
+                      <div className="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
+                        {getResultTooltip(rowIndex)}
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+                      </div>
+                    </div>
+                  )}
               </div>
             </div>
           ))}
-          
+
           {/* Solution section - only shown when game is lost */}
           {gameStatus === "lost" && (
             <div className="mt-4 pt-4 border-t-2 border-gray-300 dark:border-gray-600">
@@ -353,32 +384,36 @@ export function NumberleGame() {
                   💡 Solution
                 </span>
               </div>
-              
+
               {/* Solution row */}
               <div className="flex gap-2 items-center">
                 <div className="grid grid-cols-5 gap-2">
-                  {currentEquationData.equation.split('').map((char, colIndex) => (
-                    <div
-                      key={colIndex}
-                      className="w-12 h-12 border-2 rounded flex items-center justify-center
+                  {currentEquationData.equation
+                    .split("")
+                    .map((char, colIndex) => (
+                      <div
+                        key={colIndex}
+                        className="w-12 h-12 border-2 rounded flex items-center justify-center
                                  text-lg font-bold transition-colors duration-300
                                  bg-purple-500 text-white border-purple-600
                                  shadow-lg"
-                    >
-                      {char}
-                    </div>
-                  ))}
+                      >
+                        {char}
+                      </div>
+                    ))}
                 </div>
-                
+
                 {/* Solution equals sign */}
                 <span className="text-lg font-bold text-purple-600 dark:text-purple-400 mx-1">
                   =
                 </span>
-                
+
                 {/* Solution result tile */}
-                <div className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold
+                <div
+                  className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold
                                 bg-purple-500 text-white border-purple-600
-                                shadow-lg">
+                                shadow-lg"
+                >
                   {currentEquationData.result}
                 </div>
               </div>
@@ -386,7 +421,6 @@ export function NumberleGame() {
           )}
         </div>
       </div>
-
 
       {/* Virtual Keyboard */}
       <div className="space-y-2">
@@ -456,6 +490,10 @@ export function NumberleGame() {
               </p>
               <p>• You must match the exact equation, not just the result</p>
               <p>• Each guess must be valid (no = sign, use +, -, *, /)</p>
+              <p>
+                • <strong>Important:</strong> Math is evaluated left-to-right
+                (6+4*2 = 20, not 14)
+              </p>
               <p>• Two types of clues help you:</p>
 
               <div className="ml-4">
@@ -480,11 +518,37 @@ export function NumberleGame() {
                 <p className="font-semibold mt-3 mb-1">
                   2. Result Feedback (Math Clues):
                 </p>
-                <div className="ml-2">
-                  <p>
-                    • See if your result is higher, lower, or matches the target
+                <div className="ml-2 space-y-2">
+                  <p>• After each guess, check the result tile for hints:</p>
+                  <div className="space-y-1 ml-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-green-500 rounded flex items-center justify-center text-white text-xs font-bold">
+                        ✓
+                      </div>
+                      <span>Green: Your result matches exactly!</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-blue-100 border border-blue-300 rounded flex items-center justify-center text-blue-800 text-xs font-bold">
+                        ↑
+                      </div>
+                      <span>
+                        Blue with ↑: Your result is too low (aim higher)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-red-100 border border-red-300 rounded flex items-center justify-center text-red-800 text-xs font-bold">
+                        ↓
+                      </div>
+                      <span>
+                        Red with ↓: Your result is too high (aim lower)
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-2">
+                    <strong>Example:</strong> If target result is 15 and you
+                    guess "2*3+4" = 10 (left-to-right: 2*3=6, then 6+4=10),
+                    you'll see a blue tile with ↑ (too low)
                   </p>
-                  <p>• Use this to guide your mathematical reasoning</p>
                 </div>
               </div>
 
