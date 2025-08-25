@@ -75,8 +75,8 @@ export function NumberleGame() {
     if (!hasAtLeastOneOperation(expression)) return false;
 
     try {
-      // Check if it's a valid mathematical expression
-      const result = eval(expression.replace(/[^0-9+\-*/()]/g, ""));
+      // Check if it's a valid mathematical expression using left-to-right evaluation
+      const result = evaluateExpression(expression);
       return typeof result === "number" && !isNaN(result);
     } catch {
       return false;
@@ -85,7 +85,46 @@ export function NumberleGame() {
 
   const evaluateExpression = (expression: string): number => {
     try {
-      return eval(expression.replace(/[^0-9+\-*/()]/g, ""));
+      // Clean the expression
+      const cleanExpression = expression.replace(/[^0-9+\-*/()]/g, "");
+
+      // Parse and evaluate left-to-right
+      let result = 0;
+      let currentNumber = 0;
+      let operator = "+";
+
+      for (let i = 0; i < cleanExpression.length; i++) {
+        const char = cleanExpression[i];
+
+        if (!isNaN(Number(char))) {
+          currentNumber = currentNumber * 10 + Number(char);
+        }
+
+        if (
+          ["+", "-", "*", "/"].includes(char) ||
+          i === cleanExpression.length - 1
+        ) {
+          switch (operator) {
+            case "+":
+              result = result + currentNumber;
+              break;
+            case "-":
+              result = result - currentNumber;
+              break;
+            case "*":
+              result = result * currentNumber;
+              break;
+            case "/":
+              result = result / currentNumber;
+              break;
+          }
+
+          operator = char;
+          currentNumber = 0;
+        }
+      }
+
+      return result;
     } catch {
       return NaN;
     }
@@ -257,7 +296,9 @@ export function NumberleGame() {
     const result = rowResults[rowIndex];
     if (result === null) return { value: "", arrow: "" };
 
-    const value = Number.isInteger(result) ? result.toString() : result.toFixed(2);
+    const value = Number.isInteger(result)
+      ? result.toString()
+      : result.toFixed(2);
     let arrow = "";
 
     if (result !== currentEquationData.result) {
@@ -381,9 +422,7 @@ export function NumberleGame() {
             <div className="mt-4 pt-4 border-t-2 border-gray-300 dark:border-gray-600">
               {/* Solution label */}
               <div className="text-center mb-2">
-                <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
-                  * Solution
-                </span>
+                <span className="text-xl font-bold text-white">Solution</span>
               </div>
 
               {/* Solution row */}
@@ -394,7 +433,7 @@ export function NumberleGame() {
                     .map((char, colIndex) => (
                       <div
                         key={colIndex}
-                        className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300 bg-gray-600 text-white border-gray-600 shadow-lg"
+                        className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300 bg-green-500 text-white border-green-500 shadow-lg"
                       >
                         {char}
                       </div>
@@ -407,7 +446,7 @@ export function NumberleGame() {
                 </span>
 
                 {/* Solution result tile */}
-                <div className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold bg-gray-600 text-white border-gray-600 shadow-lg">
+                <div className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold bg-green-500 text-white border-green-500 shadow-lg">
                   {currentEquationData.result}
                 </div>
               </div>
@@ -458,13 +497,32 @@ export function NumberleGame() {
         </div>
       </div>
 
-      {/* Play Again Button - shown when game is over */}
+      {/* Win/Loss Message and Play Again Button - shown when game is over */}
       {gameStatus !== "playing" && (
         <div className="mt-6 text-center relative z-10">
+          {gameStatus === "won" ? (
+            <div className="mb-4">
+              <div className="text-2xl font-bold text-green-400 mb-2">
+                🎉 Congratulations! 🎉
+              </div>
+              <div className="text-lg text-gray-300">
+                You found the correct equation!
+              </div>
+            </div>
+          ) : (
+            <div className="mb-4">
+              <div className="text-xl font-bold text-red-400 mb-2">
+                Game Over
+              </div>
+              <div className="text-lg text-gray-300">
+                Better luck next time!
+              </div>
+            </div>
+          )}
           <button
             onClick={resetGame}
             className="px-6 py-2 text-white rounded-lg font-semibold transition-colors duration-200 hover:opacity-80"
-            style={{backgroundColor: '#0AD9DC'}}
+            style={{ backgroundColor: "#0AD9DC" }}
           >
             Play Again
           </button>

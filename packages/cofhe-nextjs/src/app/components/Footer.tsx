@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export function Footer() {
   return (
@@ -9,13 +10,20 @@ export function Footer() {
       <div className="container mx-auto px-4 flex flex-col items-center space-y-2">
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-2">
-            <Image
-              src="/fhenix_logo_dark.svg"
-              alt="Fhenix"
-              width={64}
-              height={16}
-              className="h-4 w-auto"
-            />
+            <Link 
+              href="https://www.fhenix.io/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:opacity-80 transition-opacity"
+            >
+              <Image
+                src="/fhenix_logo_dark.svg"
+                alt="Fhenix"
+                width={64}
+                height={16}
+                className="h-4 w-auto"
+              />
+            </Link>
           </div>
 
           <div className="flex items-center space-x-3">
