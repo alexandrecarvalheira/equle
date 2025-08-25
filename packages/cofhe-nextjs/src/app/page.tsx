@@ -20,7 +20,10 @@ export default function Home() {
   }, [isFrameReady, setFrameReady]);
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#011623" }}>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ backgroundColor: "#011623" }}
+    >
       <div className="flex-1">
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto space-y-6">
@@ -35,7 +38,7 @@ export default function Home() {
               </p>
             </header>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 space-y-6">
+            {/* <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 space-y-6">
               <CofheStatus />
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
                 <Wallet>
@@ -45,9 +48,10 @@ export default function Home() {
                 </Wallet>
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                {/* <ContractInteraction /> */}
+                <ContractInteraction /> 
               </div>
-            </div>
+            </div> 
+            */}
 
             <div className="mt-8">
               <NumberleGame />
