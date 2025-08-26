@@ -64,6 +64,7 @@ export function NumberleGame() {
   const [hoveredResultTile, setHoveredResultTile] = useState<number | null>(
     null
   );
+  const [warningMessage, setWarningMessage] = useState<string>("");
 
   const hasAtLeastOneOperation = (expression: string): boolean => {
     return /[+\-*/]/.test(expression);
@@ -163,12 +164,15 @@ export function NumberleGame() {
 
     if (!isValidExpression(currentGuess)) {
       if (!hasAtLeastOneOperation(currentGuess)) {
-        alert("Please include at least one operation (+, -, *, /)");
+        setWarningMessage("Please include at least one operation (+, -, *, /)");
       } else {
-        alert("Please enter a valid mathematical expression");
+        setWarningMessage("Please enter a valid mathematical expression");
       }
+      setTimeout(() => setWarningMessage(""), 3000);
       return;
     }
+
+    setWarningMessage("");
 
     const guessResult = evaluateExpression(currentGuess);
     const newBoard = [...board];
@@ -359,6 +363,15 @@ export function NumberleGame() {
         </button>
       </div>
 
+      {/* Warning Message */}
+      {warningMessage && (
+        <div className="mb-4 text-center">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative inline-block">
+            <span className="block sm:inline">{warningMessage}</span>
+          </div>
+        </div>
+      )}
+
       {/* Game Board */}
       <div className="flex justify-center mb-6 relative z-10">
         <div className="grid gap-2">
@@ -548,11 +561,14 @@ export function NumberleGame() {
       {/* Rules Modal */}
       {showRules && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="rounded-lg p-6 max-w-md w-full" style={{ backgroundColor: "#122531" }}>
-            <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
-              How to Play
-            </h3>
-            <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+          <div className="rounded-lg max-w-md w-full max-h-[90vh] flex flex-col" style={{ backgroundColor: "#122531" }}>
+            <div className="p-6 pb-0">
+              <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+                How to Play
+              </h3>
+            </div>
+            <div className="px-6 overflow-y-auto flex-1">
+              <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
               <p>
                 • Find the exact 5-character mathematical expression in 6 tries
               </p>
@@ -626,15 +642,18 @@ export function NumberleGame() {
                 </div>
               </div>
 
-              <p>• Win by finding the exact equation structure!</p>
+                <p>• Win by finding the exact equation structure!</p>
+              </div>
             </div>
-            <button
-              onClick={() => setShowRules(false)}
-              className="mt-4 w-full py-2 text-white rounded font-semibold transition-colors duration-200 hover:opacity-80"
-              style={{ backgroundColor: "#0AD9DC" }}
-            >
-              Got it!
-            </button>
+            <div className="p-6 pt-4">
+              <button
+                onClick={() => setShowRules(false)}
+                className="w-full py-2 text-white rounded font-semibold transition-colors duration-200 hover:opacity-80"
+                style={{ backgroundColor: "#0AD9DC" }}
+              >
+                Got it!
+              </button>
+            </div>
           </div>
         </div>
       )}
