@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@coinbase/onchainkit": "^0.38.19",
+    "@farcaster/frame-sdk": "^0.1.9",
     "@farcaster/quick-auth": "^0.0.7",
     "@tanstack/react-query": "^5.77.2",
     "cofhejs": "^0.3.1",

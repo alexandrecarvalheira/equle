@@ -11,6 +11,9 @@ importers:
       '@coinbase/onchainkit':
         specifier: ^0.38.19
         version: 0.38.19(@farcaster/miniapp-sdk@0.1.9(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.32))(@tanstack/query-core@5.77.2)(@types/react@19.1.6)(bufferutil@4.0.9)(immer@10.1.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@19.1.0))(utf-8-validate@5.0.10)(zod@3.25.32)
+      '@farcaster/frame-sdk':
+        specifier: ^0.1.9
+        version: 0.1.9(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.32)
       '@farcaster/quick-auth':
         specifier: ^0.0.7
         version: 0.0.7(typescript@5.8.3)
@@ -3404,7 +3407,7 @@ snapshots:
   '@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@babel/runtime': 7.27.3
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.6
       '@noble/hashes': 1.8.0
       '@solana/buffer-layout': 4.0.1
       '@solana/codecs-numbers': 2.3.0(typescript@5.8.3)
@@ -5293,7 +5296,7 @@ snapshots:
   ox@0.4.4(typescript@5.8.3)(zod@3.25.32):
     dependencies:
       '@adraffy/ens-normalize': 1.11.0
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.6
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
@@ -5534,7 +5537,7 @@ snapshots:
       buffer: 6.0.3
       eventemitter3: 5.0.1
       uuid: 8.3.2
-      ws: 8.18.2(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      ws: 8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     optionalDependencies:
       bufferutil: 4.0.9
       utf-8-validate: 5.0.10
