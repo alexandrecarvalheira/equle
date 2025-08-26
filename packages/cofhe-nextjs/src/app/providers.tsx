@@ -12,7 +12,21 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <MiniKitProvider chain={baseSepolia}>{children}</MiniKitProvider>
+        <MiniKitProvider
+          chain={baseSepolia}
+          config={{
+            appearance: {
+              name: "(Equle*)", // Displayed in modal header
+              mode: "dark", // 'light' | 'dark' | '400'
+              theme: "default", // 'default' or custom theme
+            },
+            wallet: {
+              display: "modal",
+            },
+          }}
+        >
+          {children}
+        </MiniKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

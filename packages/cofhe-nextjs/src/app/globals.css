@@ -22,3 +22,12 @@ body {
 .font-clash {
   font-family: var(--font-clash-display), Arial, Helvetica, sans-serif;
 }
+
+.bg-cyan-custom {
+  background-color: #0AD9DC;
+}
+
+.bg-cyan-custom:hover {
+  background-color: #08B8BB;
+}
+
