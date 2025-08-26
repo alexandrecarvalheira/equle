@@ -15,7 +15,6 @@ import {
 import { useEffect } from "react";
 import {
   EthBalance,
-  Address,
   Avatar,
   Name,
   Identity,
@@ -29,7 +28,6 @@ export default function Home() {
     if (!isFrameReady) {
       setFrameReady();
     }
-    console.log("isFrameReady", isFrameReady);
   }, [isFrameReady, setFrameReady]);
 
   return (
@@ -66,7 +64,6 @@ export default function Home() {
                     <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
                       <Avatar />
                       <Name />
-                      <Address />
                       <EthBalance />
                     </Identity>
                     <WalletDropdownDisconnect />

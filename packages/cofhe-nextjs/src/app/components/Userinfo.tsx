@@ -71,33 +71,6 @@ export function UserInfo() {
           <h2 className="text-xl font-bold text-[var(--app-foreground)] mb-2 truncate">
             {data.displayName}
           </h2>
-
-          {/* Bio */}
-          {data.bio && (
-            <p className="text-[var(--app-foreground-muted)] text-sm mb-3 leading-relaxed">
-              {data.bio}
-            </p>
-          )}
-
-          {/* Follower Stats */}
-          <div className="flex space-x-6 text-sm">
-            <div className="flex flex-col items-center">
-              <span className="font-semibold text-[var(--app-foreground)]">
-                {data.followerCount?.toLocaleString() || "0"}
-              </span>
-              <span className="text-[var(--app-foreground-muted)]">
-                Followers
-              </span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="font-semibold text-[var(--app-foreground)]">
-                {data.followingCount?.toLocaleString() || "0"}
-              </span>
-              <span className="text-[var(--app-foreground-muted)]">
-                Following
-              </span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
