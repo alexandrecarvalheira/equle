@@ -243,50 +243,58 @@ export function NumberleGame() {
   const getTileStyle = (state: TileState): string => {
     switch (state) {
       case "correct":
-        return "bg-green-500 text-white border-green-500";
+        return "bg-green-500 text-white";
       case "present":
-        return "bg-yellow-500 text-white border-yellow-500";
+        return "bg-yellow-500 text-white";
       case "absent":
-        return "bg-gray-500 text-white border-gray-500";
+        return "bg-gray-500 text-white";
       default:
-        return "bg-white text-black border-gray-300";
+        return "bg-white text-black";
     }
   };
 
-  const getKeyboardKeyStyle = (key: string): string => {
+  const getKeyboardKeyStyle = (key: string) => {
     const status = keyboardStatus[key];
-    const baseStyle =
-      "w-8 h-10 rounded text-sm font-semibold transition-colors duration-200";
+    const baseClass = "w-8 h-10 rounded text-sm font-semibold transition-colors duration-200";
+    
+    let style: React.CSSProperties = {};
+    let className = baseClass;
 
     switch (status) {
       case "correct":
-        return `${baseStyle} bg-green-500 text-white hover:bg-green-600`;
+        style = { backgroundColor: "#10b981", color: "white" };
+        break;
       case "present":
-        return `${baseStyle} bg-yellow-500 text-white hover:bg-yellow-600`;
+        style = { backgroundColor: "#eab308", color: "white" };
+        break;
       case "absent":
-        return `${baseStyle} bg-gray-500 text-white hover:bg-gray-600`;
+        style = { backgroundColor: "#6b7280", color: "white" };
+        break;
       default:
-        return `${baseStyle} bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200`;
+        style = { backgroundColor: "#9ca3af", color: "white" };
+        break;
     }
+
+    return { className, style };
   };
 
   const getResultTileStyle = (rowIndex: number): string => {
     const result = rowResults[rowIndex];
     const baseStyle =
-      "w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300";
+      "w-12 h-12 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300";
 
     if (result === null) {
-      return `${baseStyle} bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-300 dark:border-gray-600`;
+      return `${baseStyle} bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500`;
     }
 
     if (result === currentEquationData.result) {
-      return `${baseStyle} bg-green-500 text-white border-green-500`;
+      return `${baseStyle} bg-green-500 text-white`;
     } else if (result < currentEquationData.result) {
       // Too low - blue/cyan colors
-      return `${baseStyle} bg-cyan-400 text-white border-cyan-400`;
+      return `${baseStyle} bg-cyan-400 text-white`;
     } else {
       // Too high - red/orange colors
-      return `${baseStyle} bg-red-400 text-white border-red-400`;
+      return `${baseStyle} bg-red-400 text-white`;
     }
   };
 
@@ -361,7 +369,7 @@ export function NumberleGame() {
                   <div
                     key={colIndex}
                     className={`
-                      w-12 h-12 border-2 rounded flex items-center justify-center
+                      w-12 h-12 rounded flex items-center justify-center
                       text-lg font-bold transition-colors duration-300
                       ${getTileStyle(tile.state)}
                       ${
@@ -433,7 +441,7 @@ export function NumberleGame() {
                     .map((char, colIndex) => (
                       <div
                         key={colIndex}
-                        className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300 bg-green-500 text-white border-green-500 shadow-lg"
+                        className="w-12 h-12 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300 bg-green-500 text-white shadow-lg"
                       >
                         {char}
                       </div>
@@ -446,7 +454,7 @@ export function NumberleGame() {
                 </span>
 
                 {/* Solution result tile */}
-                <div className="w-12 h-12 border-2 rounded flex items-center justify-center text-lg font-bold bg-green-500 text-white border-green-500 shadow-lg">
+                <div className="w-12 h-12 rounded flex items-center justify-center text-lg font-bold bg-green-500 text-white shadow-lg">
                   {currentEquationData.result}
                 </div>
               </div>
@@ -458,26 +466,34 @@ export function NumberleGame() {
       {/* Virtual Keyboard */}
       <div className="space-y-2 relative z-10">
         <div className="flex gap-1 justify-center">
-          {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((key) => (
-            <button
-              key={key}
-              onClick={() => handleVirtualKeyboard(key)}
-              className={getKeyboardKeyStyle(key)}
-            >
-              {key}
-            </button>
-          ))}
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((key) => {
+            const { className, style } = getKeyboardKeyStyle(key);
+            return (
+              <button
+                key={key}
+                onClick={() => handleVirtualKeyboard(key)}
+                className={className}
+                style={style}
+              >
+                {key}
+              </button>
+            );
+          })}
         </div>
         <div className="flex gap-1 justify-center">
-          {["+", "-", "*", "/"].map((key) => (
-            <button
-              key={key}
-              onClick={() => handleVirtualKeyboard(key)}
-              className={getKeyboardKeyStyle(key)}
-            >
-              {key}
-            </button>
-          ))}
+          {["+", "-", "*", "/"].map((key) => {
+            const { className, style } = getKeyboardKeyStyle(key);
+            return (
+              <button
+                key={key}
+                onClick={() => handleVirtualKeyboard(key)}
+                className={className}
+                style={style}
+              >
+                {key}
+              </button>
+            );
+          })}
         </div>
         <div className="flex gap-2 justify-center mt-4">
           <button
@@ -532,7 +548,7 @@ export function NumberleGame() {
       {/* Rules Modal */}
       {showRules && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
+          <div className="rounded-lg p-6 max-w-md w-full" style={{ backgroundColor: "#122531" }}>
             <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
               How to Play
             </h3>
