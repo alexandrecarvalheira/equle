@@ -14,6 +14,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <MiniKitProvider
           chain={baseSepolia}
+          apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
           config={{
             appearance: {
               name: "(Equle*)", // Displayed in modal header

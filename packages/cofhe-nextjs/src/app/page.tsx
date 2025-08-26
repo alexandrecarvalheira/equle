@@ -20,6 +20,7 @@ import {
   Name,
   Identity,
 } from "@coinbase/onchainkit/identity";
+import { UserInfo } from "./components/Userinfo";
 
 export default function Home() {
   const { setFrameReady, isFrameReady } = useMiniKit();
@@ -73,6 +74,7 @@ export default function Home() {
                 </Wallet>
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <UserInfo />
                 {/* <ContractInteraction />  */}
               </div>
             </div>
