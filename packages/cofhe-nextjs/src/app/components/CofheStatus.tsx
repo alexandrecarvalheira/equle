@@ -1,40 +1,39 @@
-'use client'
+"use client";
 
-import { useCofhe } from '../hooks/useCofhe'
-import { useEffect, useState } from 'react'
+import { useCofhe } from "../hooks/useCofhe";
+import { useEffect, useState } from "react";
 
 export function CofheStatus() {
-  const { isInitializing, isInitialized } = useCofhe()
-  const [mounted, setMounted] = useState(false)
+  const { isInitializing, isInitialized } = useCofhe();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    setMounted(true);
+  }, []);
 
   if (!mounted) {
-    return null
+    return null;
   }
 
   return (
     <div className="flex flex-col gap-2 mb-4">
       <div className="flex items-center gap-2">
-        <div 
+        <div
           className={`w-3 h-3 rounded-full ${
-            isInitializing 
-              ? 'bg-yellow-500 animate-pulse' 
-              : isInitialized 
-                ? 'bg-green-500' 
-                : 'bg-red-500'
-          }`} 
+            isInitializing
+              ? "bg-yellow-500 animate-pulse"
+              : isInitialized
+              ? "bg-green-500"
+              : "bg-red-500"
+          }`}
         />
         <p>
-          Cofhe Status: {
-            isInitializing 
-              ? 'Initializing...' 
-              : isInitialized 
-                ? 'Initialized' 
-                : 'Not Initialized'
-          }
+          Cofhe Status:{" "}
+          {isInitializing
+            ? "Initializing..."
+            : isInitialized
+            ? "Initialized"
+            : "Not Initialized"}
         </p>
       </div>
       {/* {!isInitialized && !isInitializing && (
@@ -46,5 +45,5 @@ export function CofheStatus() {
         </button>
       )} */}
     </div>
-  )
-} 
+  );
+}

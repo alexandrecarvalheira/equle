@@ -20,9 +20,13 @@ import {
   Identity,
 } from "@coinbase/onchainkit/identity";
 import { UserInfo } from "./components/Userinfo";
+import { useAccount } from "wagmi";
 
 export default function Home() {
   const { setFrameReady, isFrameReady } = useMiniKit();
+
+  const { isConnected } = useAccount();
+  console.log("isConnected", isConnected);
 
   useEffect(() => {
     if (!isFrameReady) {
@@ -55,20 +59,7 @@ export default function Home() {
             <div className=" dark:bg-gray-800 rounded-xl shadow-lg p-6 space-y-6">
               <CofheStatus />
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <Wallet>
-                  <ConnectWallet>
-                    <Avatar className="h-6 w-6" />
-                    <Name />
-                  </ConnectWallet>
-                  <WalletDropdown>
-                    <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                      <Avatar />
-                      <Name />
-                      <EthBalance />
-                    </Identity>
-                    <WalletDropdownDisconnect />
-                  </WalletDropdown>
-                </Wallet>
+                <WalletConnect />
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
                 {/* <UserInfo /> */}
