@@ -14,7 +14,7 @@ const MAX_ATTEMPTS = 6;
 
 const EQUATION_POOL = [
   { equation: "8*6-2", result: 46 },
-  { equation: "4+3*5", result: 19 },
+  { equation: "4+3*5", result: 35 },
   { equation: "9/3+7", result: 10 },
   { equation: "2*8-1", result: 15 },
   { equation: "6+4*2", result: 20 },
@@ -74,9 +74,12 @@ export function NumberleGame() {
     if (expression.length !== EQUATION_LENGTH) return false;
     if (expression.includes("=")) return false;
     if (!hasAtLeastOneOperation(expression)) return false;
-    
+
     // Check if first or last character is an operation
-    if (/[+\-*/]/.test(expression[0]) || /[+\-*/]/.test(expression[expression.length - 1])) {
+    if (
+      /[+\-*/]/.test(expression[0]) ||
+      /[+\-*/]/.test(expression[expression.length - 1])
+    ) {
       return false;
     }
 

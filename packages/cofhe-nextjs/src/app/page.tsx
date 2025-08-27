@@ -23,10 +23,12 @@ import {
   Name,
   Identity,
 } from "@coinbase/onchainkit/identity";
+import { useAccount } from "wagmi";
 import { UserInfo } from "./components/Userinfo";
 
 export default function Home() {
   const { setFrameReady, isFrameReady } = useMiniKit();
+  const { address } = useAccount();
 
   useEffect(() => {
     if (!isFrameReady) {

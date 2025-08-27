@@ -19,10 +19,6 @@ export function Providers({ children }: { children: ReactNode }) {
             appearance: {
               name: "(Equle*)", // Displayed in modal header
               mode: "dark", // 'light' | 'dark' | '400'
-              theme: "default", // 'default' or custom theme
-            },
-            wallet: {
-              display: "modal",
             },
           }}
         >
