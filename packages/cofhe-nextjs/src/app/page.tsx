@@ -1,4 +1,8 @@
 "use client";
+
+// Force dynamic rendering, skip prerendering
+export const dynamic = "force-dynamic";
+
 import { WalletConnect } from "./components/WalletConnect";
 import { CofheStatus } from "./components/CofheStatus";
 
