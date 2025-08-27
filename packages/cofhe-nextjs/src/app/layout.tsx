@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import "@coinbase/onchainkit/styles.css";
-import { Providers } from "./providers";
+import dynamic from "next/dynamic";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,6 +50,10 @@ const clashDisplay = localFont({
   ],
   variable: "--font-clash-display",
   display: "swap",
+});
+
+const Providers = dynamic(() => import("./providers"), {
+  ssr: false,
 });
 
 export async function generateMetadata(): Promise<Metadata> {

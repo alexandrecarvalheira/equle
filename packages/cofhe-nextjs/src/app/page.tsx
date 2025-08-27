@@ -31,6 +31,9 @@ export default function Home() {
     }
   }, [isFrameReady, setFrameReady]);
 
+  const { address } = useAccount();
+  console.log("address", address);
+
   return (
     <div
       className="min-h-screen flex flex-col"
