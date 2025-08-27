@@ -25,9 +25,6 @@ import { useAccount } from "wagmi";
 export default function Home() {
   const { setFrameReady, isFrameReady } = useMiniKit();
 
-  const { isConnected } = useAccount();
-  console.log("isConnected", isConnected);
-
   useEffect(() => {
     if (!isFrameReady) {
       setFrameReady();
@@ -62,7 +59,7 @@ export default function Home() {
                 <WalletConnect />
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                {/* <UserInfo /> */}
+                <UserInfo />
                 {/* <ContractInteraction />  */}
               </div>
             </div>
