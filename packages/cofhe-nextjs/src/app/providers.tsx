@@ -6,7 +6,7 @@ import { ReactNode } from "react";
 import { MiniKitProvider } from "@coinbase/onchainkit/minikit";
 const queryClient = new QueryClient();
 
-export default function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children }: { children: ReactNode }) {
   return (
     <MiniKitProvider
       chain={baseSepolia}

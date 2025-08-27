@@ -20,7 +20,6 @@ import {
   Identity,
 } from "@coinbase/onchainkit/identity";
 import { UserInfo } from "./components/Userinfo";
-import { useAccount } from "wagmi";
 
 export default function Home() {
   const { setFrameReady, isFrameReady } = useMiniKit();
@@ -30,9 +29,6 @@ export default function Home() {
       setFrameReady();
     }
   }, [isFrameReady, setFrameReady]);
-
-  const { address } = useAccount();
-  console.log("address", address);
 
   return (
     <div
