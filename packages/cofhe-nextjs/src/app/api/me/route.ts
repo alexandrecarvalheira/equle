@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     // based on the Vercel environment. This will vary depending on your hosting provider.
     const payload = await client.verifyJwt({
       token: authorization.split(" ")[1] as string,
-      domain: "https://cofhe-base-miniapp-cofhe-nextjs.vercel.app/",
+      domain: "https://cofhe-base-miniapp-cofhe-nextjs.vercel.app",
     });
 
     // If the token was valid, `payload.sub` will be the user's Farcaster ID.
