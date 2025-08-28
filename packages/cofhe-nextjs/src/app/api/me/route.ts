@@ -35,11 +35,12 @@ export async function GET(request: NextRequest) {
     // based on the Vercel environment. This will vary depending on your hosting provider.
     const payload = await client.verifyJwt({
       token: authorization.split(" ")[1] as string,
-      domain: "https://cofhe-base-miniapp-cofhe-nextjs.vercel.app",
+      domain: getUrlHost(),
     });
 
     // If the token was valid, `payload.sub` will be the user's Farcaster ID.
     const userFid = payload.sub;
+    console.log("userFid", userFid);
 
     // And now we can use that FID to do whatever we want.
     // In this example, we're going to get the user's info from Neynar and return it.
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
     if (!userInfo) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
+
     return NextResponse.json(userInfo);
   } catch (e) {
     if (e instanceof Errors.InvalidTokenError) {

@@ -12,6 +12,7 @@ function useUserInfo() {
       // request is to use `sdk.quickAuth.fetch`. This will automatically include the
       // necessary `Authorization` header for the backend to verify.
       const result = await sdk.quickAuth.fetch("/api/me");
+      console.log("result", result);
 
       const userInfo = await result.json();
       return {

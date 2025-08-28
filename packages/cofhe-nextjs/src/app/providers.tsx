@@ -10,21 +10,17 @@ const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <MiniKitProvider
-          chain={base}
-          apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
-          config={{
-            appearance: {
-              name: "(Equle*)", // Displayed in modal header
-              mode: "dark", // 'light' | 'dark' | '400'
-            },
-          }}
-        >
-          {children}
-        </MiniKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <MiniKitProvider
+      chain={base}
+      apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
+      config={{
+        appearance: {
+          name: "(Equle*)", // Displayed in modal header
+          mode: "dark", // 'light' | 'dark' | '400'
+        },
+      }}
+    >
+      {children}
+    </MiniKitProvider>
   );
 }
