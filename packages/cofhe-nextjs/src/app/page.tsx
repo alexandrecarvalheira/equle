@@ -64,7 +64,6 @@ export default function Home() {
                 <WalletConnect />
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <UserInfo />
                 {/* <ContractInteraction />  */}
               </div>
             </div>
