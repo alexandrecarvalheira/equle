@@ -1,10 +1,13 @@
 "use client";
 
+import { useAccount } from "wagmi";
 import { useCofhe } from "../hooks/useCofhe";
 import { useEffect, useState } from "react";
 
 export function CofheStatus() {
   const { isInitializing, isInitialized } = useCofhe();
+  const { address } = useAccount();
+  console.log("address", address);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -28,6 +31,7 @@ export function CofheStatus() {
           }`}
         />
         <p>
+          {address}
           Cofhe Status:{" "}
           {isInitializing
             ? "Initializing..."

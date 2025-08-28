@@ -69,7 +69,7 @@ export default function Home() {
                   <Name />
                   <EthBalance />
                 </Identity>
-                <UserInfo />
+                {/* <UserInfo /> */}
                 {/* <ContractInteraction />  */}
               </div>
             </div>
