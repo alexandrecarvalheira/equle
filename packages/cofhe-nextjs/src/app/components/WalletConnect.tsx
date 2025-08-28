@@ -37,33 +37,31 @@ export function WalletConnect() {
   console.log("isConnected", isConnected);
   console.log("address", address);
 
-  if (isConnected) {
-    return (
-      // <div className="flex flex-col gap-2">
-      //   {connectors.map((connector) => (
-      //     <button
-      //       key={connector.uid}
-      //       onClick={() => connect({ connector })}
-      //       className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-      //     >
-      //       Connect {connector.name}
-      //     </button>
-      //   ))}
-      // </div>
-      <Wallet>
-        <ConnectWallet>
-          <Avatar className="h-6 w-6" />
+  return (
+    // <div className="flex flex-col gap-2">
+    //   {connectors.map((connector) => (
+    //     <button
+    //       key={connector.uid}
+    //       onClick={() => connect({ connector })}
+    //       className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+    //     >
+    //       Connect {connector.name}
+    //     </button>
+    //   ))}
+    // </div>
+    <Wallet>
+      <ConnectWallet>
+        <Avatar className="h-6 w-6" />
+        <Name />
+      </ConnectWallet>
+      <WalletDropdown>
+        <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+          <Avatar />
           <Name />
-        </ConnectWallet>
-        <WalletDropdown>
-          <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-            <Avatar />
-            <Name />
-            <EthBalance />
-          </Identity>
-          <WalletDropdownDisconnect />
-        </WalletDropdown>
-      </Wallet>
-    );
-  }
+          <EthBalance />
+        </Identity>
+        <WalletDropdownDisconnect />
+      </WalletDropdown>
+    </Wallet>
+  );
 }

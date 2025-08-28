@@ -3,7 +3,7 @@ import { createConfig, http } from "wagmi";
 import { coinbaseWallet, injected } from "wagmi/connectors";
 
 export const wagmiConfig = createConfig({
-  chains: [baseSepolia],
+  chains: [baseSepolia, base],
   connectors: [
     coinbaseWallet({
       appName: "onchainkit",
@@ -15,5 +15,6 @@ export const wagmiConfig = createConfig({
   multiInjectedProviderDiscovery: false,
   transports: {
     [baseSepolia.id]: http(),
+    [base.id]: http(),
   },
 });

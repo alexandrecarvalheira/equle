@@ -64,6 +64,11 @@ export default function Home() {
                 <WalletConnect />
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                  <Avatar />
+                  <Name />
+                  <EthBalance />
+                </Identity>
                 {/* <ContractInteraction />  */}
               </div>
             </div>
