@@ -3,9 +3,15 @@
 import { useAuthenticate, useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useState } from "react";
 
+interface SignInResult {
+  signature: string;
+  message: string;
+  authMethod: "custody" | "authAddress";
+}
+
 export function WalletConnect() {
   const { signIn } = useAuthenticate();
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<SignInResult | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const { context } = useMiniKit();
 
@@ -14,9 +20,11 @@ export function WalletConnect() {
     try {
       const result = await signIn();
       console.log("result", result);
-      if (result) {
+      if (result && typeof result === "object") {
         console.log("Authenticated user:", result);
         setUser(result);
+      } else {
+        console.log("Authentication was cancelled or failed");
       }
     } catch (error) {
       console.error("Authentication failed:", error);
@@ -28,7 +36,9 @@ export function WalletConnect() {
   if (user) {
     return (
       <div className="flex items-center gap-2">
-        <p className="text-green-600">✅ Authenticated as FID: {user.fid}</p>
+        <p className="text-green-600">
+          ✅ Authenticated as FID: {context?.user?.fid || "Unknown"}
+        </p>
         <button
           onClick={() => {
             setUser(null);
