@@ -78,7 +78,7 @@ contract Equle {
          playerStates[gameId][msg.sender].hasWon = FHE.eq(lower20Bits, FHE.asEuint128(0));
 
         
-        // orange and grey can be all compared offchain
+        // orange and grey can be all compared offchain(CTF on yellow values)
 
 
         //work on the result guess

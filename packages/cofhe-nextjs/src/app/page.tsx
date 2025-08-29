@@ -27,7 +27,7 @@ import { useAccount } from "wagmi";
 import { UserInfo } from "./components/Userinfo";
 
 export default function Home() {
-  const { setFrameReady, isFrameReady } = useMiniKit();
+  const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { address } = useAccount();
 
   useEffect(() => {
@@ -64,11 +64,13 @@ export default function Home() {
                 <WalletConnect />
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                <h1>Welcome, User {context?.user.fid}!</h1>
+                {context?.client.added && <p>✅ You've saved this app!</p>}
+                {/* <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
                   <Avatar />
                   <Name />
                   <EthBalance />
-                </Identity>
+                </Identity> */}
                 {/* <UserInfo /> */}
                 {/* <ContractInteraction />  */}
               </div>

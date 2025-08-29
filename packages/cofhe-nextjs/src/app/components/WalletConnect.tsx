@@ -1,67 +1,54 @@
 "use client";
 
-import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { useChainId } from "wagmi";
-import { useEffect, useState } from "react";
-import { WalletDropdown } from "@coinbase/onchainkit/wallet";
-import { WalletDropdownDisconnect } from "@coinbase/onchainkit/wallet";
-import { ConnectWallet } from "@coinbase/onchainkit/wallet";
-import { Wallet } from "@coinbase/onchainkit/wallet";
-import { Avatar } from "@coinbase/onchainkit/identity";
-import { Name } from "@coinbase/onchainkit/identity";
-import { EthBalance } from "@coinbase/onchainkit/identity";
-import { Identity } from "@coinbase/onchainkit/identity";
-
-const CHAIN_NAMES: { [key: number]: string } = {
-  1: "Ethereum Mainnet",
-  11155111: "Sepolia",
-  42161: "Arbitrum One",
-  421614: "Arbitrum Sepolia",
-};
+import { useAuthenticate, useMiniKit } from "@coinbase/onchainkit/minikit";
+import { useState } from "react";
 
 export function WalletConnect() {
-  const { address, isConnected } = useAccount();
-  const { connect, connectors } = useConnect();
-  const { disconnect } = useDisconnect();
-  const chainId = useChainId();
-  const [mounted, setMounted] = useState(false);
+  const { signIn } = useAuthenticate();
+  const [user, setUser] = useState(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const { context } = useMiniKit();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const handleAuth = async () => {
+    setIsAuthenticating(true);
+    try {
+      const result = await signIn();
+      console.log("result", result);
+      if (result) {
+        console.log("Authenticated user:", result);
+        setUser(result);
+      }
+    } catch (error) {
+      console.error("Authentication failed:", error);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
 
-  if (!mounted) {
-    return null;
+  if (user) {
+    return (
+      <div className="flex items-center gap-2">
+        <p className="text-green-600">✅ Authenticated as FID: {user.fid}</p>
+        <button
+          onClick={() => {
+            setUser(null);
+            window.location.reload();
+          }}
+          className="px-3 py-1 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+        >
+          Sign Out
+        </button>
+      </div>
+    );
   }
 
-  console.log("isConnected", isConnected);
-  console.log("address", address);
-
   return (
-    // <div className="flex flex-col gap-2">
-    //   {connectors.map((connector) => (
-    //     <button
-    //       key={connector.uid}
-    //       onClick={() => connect({ connector })}
-    //       className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-    //     >
-    //       Connect {connector.name}
-    //     </button>
-    //   ))}
-    // </div>
-    <Wallet>
-      <ConnectWallet>
-        <Avatar className="h-6 w-6" />
-        <Name />
-      </ConnectWallet>
-      <WalletDropdown>
-        <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-          <Avatar />
-          <Name />
-          <EthBalance />
-        </Identity>
-        <WalletDropdownDisconnect />
-      </WalletDropdown>
-    </Wallet>
+    <button
+      onClick={handleAuth}
+      disabled={isAuthenticating}
+      className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300 transition-colors"
+    >
+      {isAuthenticating ? "Authenticating..." : "Sign In with Farcaster"}
+    </button>
   );
 }
