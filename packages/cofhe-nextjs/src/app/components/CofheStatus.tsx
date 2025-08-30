@@ -31,7 +31,6 @@ export function CofheStatus() {
           }`}
         />
         <p>
-          {address}
           Cofhe Status:{" "}
           {isInitializing
             ? "Initializing..."

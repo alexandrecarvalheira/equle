@@ -67,8 +67,6 @@ export function WalletConnect() {
       >
         {isAuthenticating ? "Authenticating..." : "Sign In with Farcaster"}
       </button>
-
-      <Wallet />
     </>
   );
 }
