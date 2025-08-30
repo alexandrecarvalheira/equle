@@ -1,6 +1,14 @@
 "use client";
 
+import {
+  Avatar,
+  Address,
+  EthBalance,
+  Identity,
+  Name,
+} from "@coinbase/onchainkit/identity";
 import { useAuthenticate, useMiniKit } from "@coinbase/onchainkit/minikit";
+import { ConnectWallet, Wallet } from "@coinbase/onchainkit/wallet";
 import { useState } from "react";
 
 interface SignInResult {
@@ -51,12 +59,16 @@ export function WalletConnect() {
   }
 
   return (
-    <button
-      onClick={handleAuth}
-      disabled={isAuthenticating}
-      className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300 transition-colors"
-    >
-      {isAuthenticating ? "Authenticating..." : "Sign In with Farcaster"}
-    </button>
+    <>
+      <button
+        onClick={handleAuth}
+        disabled={isAuthenticating}
+        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-blue-300 transition-colors"
+      >
+        {isAuthenticating ? "Authenticating..." : "Sign In with Farcaster"}
+      </button>
+
+      <Wallet />
+    </>
   );
 }
