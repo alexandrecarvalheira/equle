@@ -65,7 +65,17 @@ export default function Home() {
               </div>
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
                 <h1>Welcome, User {context?.user.fid}!</h1>
-                {context?.client.added && <p>✅ You've saved this app!</p>}
+                <p>
+                  ✅ Authenticated as user:{" "}
+                  {context?.user?.displayName || "Unknown"}
+                </p>
+                <p>Username: {context?.user?.username || "Unknown"}</p>
+                <p>
+                  Location: {context?.user?.location?.description || "Unknown"}
+                </p>
+                <p>Profile Picture: {context?.user?.pfpUrl || "Unknown"}</p>
+
+                <p>from wagmi: {address}</p>
                 {/* <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
                   <Avatar />
                   <Name />

@@ -36,9 +36,7 @@ export function WalletConnect() {
   if (user) {
     return (
       <div className="flex items-center gap-2">
-        <p className="text-green-600">
-          ✅ Authenticated as FID: {context?.user?.fid || "Unknown"}
-        </p>
+        <p className="text-green-600">✅ Authenticated as display name: </p>
         <button
           onClick={() => {
             setUser(null);
