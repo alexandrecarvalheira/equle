@@ -2,9 +2,10 @@
 pragma solidity ^0.8.25;
 
 import "@fhenixprotocol/cofhe-contracts/FHE.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 
-contract Equle {
+contract Equle is Ownable {
     uint256 public immutable startTimestamp;
     uint256 public constant DAY = 1 days;
     euint16 public ZERO;
@@ -19,25 +20,25 @@ contract Equle {
     //     [127...100][99...80][79...60][59...40][39...20][19...0]
     //       unused     rot4     rot3     rot2     rot1     rot0
 
+
+    // for now storing all the guesses and results, improve this later
     struct PlayerGameState {
-        euint128[] equationGuesses;    // Array of all equation attempts
-        euint128[] equationXor;        // Array of all equations xor attempts
-        euint16[] resultGuesses;        // Array of all result attempts (matches equationGuesses)
-        uint8 currentAttempt;         // Current attempt count
-        ebool hasWon;                    // Whether player has won
+        euint128[5] equationGuesses;    // Array of all equation attempts (max 5 attempts)
+        euint128[5] equationXor;        // Array of all equations xor attempts (max 5 attempts)
+        euint16[5] resultGuesses;       // Array of all result attempts (max 5 attempts)
+        euint16[5] resultAnswers;       // Array of all result comparisons (max 5 attempts)
+        uint8 currentAttempt;          // Current attempt count
+        bool hasWon;                   // Whether player has won
     }
 
     mapping(uint256 => mapping(address => PlayerGameState)) public playerStates;
-    
-    
     // mapping -> gameid -> result (target result as euint for privacy)
     mapping(uint256 => euint16) public gameResult;
-    
     // mapping -> gameid -> equation
     mapping(uint256 => euint128) public gameEquation;
     
 
-    constructor() {
+    constructor() Ownable(msg.sender) {
         startTimestamp = block.timestamp;
         ZERO = FHE.asEuint16(0);
         ONE = FHE.asEuint16(1);
@@ -47,50 +48,89 @@ contract Equle {
         FHE.allowThis(TWO);
     }
 
-    /**
-     * @dev Returns the current game ID based on days elapsed since deployment
-     * @return The current game ID (0-indexed, increments daily)
-     */
-    function getCurrentGameId() public view returns (uint256) {
-        return ((block.timestamp - startTimestamp) / DAY) + 1;
-    }
 
-    function guess(InEuint128 memory equationGuess, InEuint16 memory resultGuess) public returns(euint16 resultAnswer) {
+    function guess(InEuint128 memory equationGuess, InEuint16 memory resultGuess) public {
         uint256 gameId = getCurrentGameId();
         euint128 eqGuess = FHE.asEuint128(equationGuess);
         euint16 result = FHE.asEuint16(resultGuess);
+        uint8 currentAttempt = playerStates[gameId][msg.sender].currentAttempt;
 
         // check and ++ userr atempt
-        require(playerStates[gameId][msg.sender].currentAttempt < 5, "You have reached the maximum number of attempts");
+        require(currentAttempt < 5, "You have reached the maximum number of attempts");
         playerStates[gameId][msg.sender].currentAttempt++;
 
-        // store the equation xor
-        playerStates[gameId][msg.sender].equationXor[playerStates[gameId][msg.sender].currentAttempt] = FHE.xor(eqGuess, gameEquation[gameId]);
-
-        // to check if won, compare if  equationXor 0-19bits == 0;
-
-        // Extract the lower 20 bits (0-19) of the XOR result
-        euint128 mask = FHE.asEuint128((1 << 20) - 1); // Creates mask 0x000FFFFF (20 bits of 1s)
-        euint128 lower20Bits = FHE.and(playerStates[gameId][msg.sender].equationXor[playerStates[gameId][msg.sender].currentAttempt], mask);
-        
-
-        // Check if player has won (all lower 20 bits are 0)
-         playerStates[gameId][msg.sender].hasWon = FHE.eq(lower20Bits, FHE.asEuint128(0));
-
-        
-        // orange and grey can be all compared offchain(CTF on yellow values)
+        require(!playerStates[gameId][msg.sender].hasWon, "You have already won");
 
 
-        //work on the result guess
-        playerStates[gameId][msg.sender].resultGuesses[playerStates[gameId][msg.sender].currentAttempt] = result;
-        // lt = 1, eq = 0, gt = 2
-        ebool isResultCorrect = FHE.eq(result, gameResult[gameId]);
-        resultAnswer = FHE.select(isResultCorrect, ZERO, FHE.select(FHE.lt(result, gameResult[gameId]), ONE, TWO));
+        // store the inputs
+        playerStates[gameId][msg.sender].equationGuesses[currentAttempt] = eqGuess;
+        playerStates[gameId][msg.sender].resultGuesses[currentAttempt] = result;
+        //FHE operation 
+        playerStates[gameId][msg.sender].equationXor[currentAttempt] = FHE.xor(eqGuess, gameEquation[gameId]);
+
+
+        // result check
+        euint16 resultAnswer = _resultCheck(result, gameResult[gameId]);
+        playerStates[gameId][msg.sender].resultAnswers[currentAttempt] = resultAnswer;
 
 
         //ACL
-        FHE.allowSender(playerStates[gameId][msg.sender].equationXor[playerStates[gameId][msg.sender].currentAttempt]);
-        FHE.allowSender(playerStates[gameId][msg.sender].hasWon);
+        FHE.allowSender(playerStates[gameId][msg.sender].equationXor[currentAttempt]);
+        FHE.allowThis(playerStates[gameId][msg.sender].equationXor[currentAttempt]);
+
+        FHE.allowSender(playerStates[gameId][msg.sender].equationGuesses[currentAttempt]);
+        FHE.allowThis(playerStates[gameId][msg.sender].equationGuesses[currentAttempt]);
+
+        FHE.allowSender(playerStates[gameId][msg.sender].resultGuesses[currentAttempt]);
+        FHE.allowThis(playerStates[gameId][msg.sender].resultGuesses[currentAttempt]);
+
+        FHE.allowSender(playerStates[gameId][msg.sender].resultAnswers[currentAttempt]);
+        FHE.allowThis(playerStates[gameId][msg.sender].resultAnswers[currentAttempt]);
+    }
+    
+    function _resultCheck(euint16 userGuess, euint16 targetResult) private returns(euint16 resultAnswer) {
+        // lt = 1, eq = 0, gt = 2
+        ebool isResultCorrect = FHE.eq(userGuess, targetResult);
+        resultAnswer = FHE.select(isResultCorrect, ZERO, FHE.select(FHE.lt(userGuess, targetResult), ONE, TWO));
+
+    }
+
+
+    // ui should  display finalize button when user get to the correct answer
+    function finalizeGame() public {
+        uint256 gameId = getCurrentGameId();
+        uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
+
+        FHE.decrypt(playerStates[gameId][msg.sender].equationXor[lastAttempt]);
+
+
+    }
+
+    function getDecryptedfinalizedEquation() public {
+        uint256 gameId = getCurrentGameId();
+        uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
+
+        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(playerStates[gameId][msg.sender].equationXor[lastAttempt]);
+        if (!decrypted)
+            revert("Value is not ready");
+
+        uint128 mask = (1 << 20) - 1; // Creates mask 0x000FFFFF (20 bits of 1s)
+        uint128 lower20Bits = value & mask;
+        playerStates[gameId][msg.sender].hasWon = (lower20Bits == 0);
+
+    }
+
+    //admin functions
+    function setGame(uint256 gameId, InEuint128 memory equation, InEuint16 memory result) external onlyOwner {
+        gameEquation[gameId] = FHE.asEuint128(equation);
+        gameResult[gameId] = FHE.asEuint16(result);
+        FHE.allowThis(gameEquation[gameId]);
+        FHE.allowThis(gameResult[gameId]);
+    }
+
+
+    function getCurrentGameId() public view returns (uint256) {
+        return ((block.timestamp - startTimestamp) / DAY) + 1;
     }
     
 }
