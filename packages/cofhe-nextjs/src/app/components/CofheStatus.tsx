@@ -1,13 +1,10 @@
 "use client";
 
-import { useAccount } from "wagmi";
 import { useCofhe } from "../hooks/useCofhe";
 import { useEffect, useState } from "react";
 
 export function CofheStatus() {
   const { isInitializing, isInitialized } = useCofhe();
-  const { address } = useAccount();
-  console.log("address", address);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -19,7 +16,7 @@ export function CofheStatus() {
   }
 
   return (
-    <div className="flex flex-col gap-2 mb-4">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <div
           className={`w-3 h-3 rounded-full ${

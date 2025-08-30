@@ -16,13 +16,14 @@ import { UserInfo } from "./components/Userinfo";
 export default function Home() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { address } = useAccount();
+  const { isConnected } = useAccount();
 
   useEffect(() => {
     if (!isFrameReady) {
       setFrameReady();
     }
   }, [isFrameReady, setFrameReady]);
-
+  console.log("isConnected", address);
   return (
     <div
       className="min-h-screen flex flex-col"
