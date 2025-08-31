@@ -5,13 +5,6 @@ import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 
-contract Equle is Ownable {
-    uint256 public immutable startTimestamp;
-    uint256 public constant DAY = 1 days;
-    euint16 public ZERO;
-    euint16 public ONE;
-    euint16 public TWO;
-
 
     //'0'..'9' -> 0..9, '+'->10, '-'->11, '*'->12, '/'->13
     //'0':0000 '1':0001 '2':0010 '3':0011 '4':0100 '5':0101 '6':0110 '7':0111
@@ -21,9 +14,66 @@ contract Equle is Ownable {
     //       unused     rot4     rot3     rot2     rot1     rot0
 
     // doubts on - euint events and AA for ACL
+    // better pattern to have more storage on FHE results, or redo FHE on-demand?
 
 
-    // for now storing all the guesses and results, improve this later
+/**
+ * @title Equle
+ * @author (Fhenix*)
+ * @notice A privacy-preserving mathematical equation guessing game using Fully Homomorphic Encryption (FHE)
+ * @dev Players attempt to guess both a mathematical equation and its result within 5 attempts per day.
+ *      The game uses FHE to maintain privacy of equations and results while allowing gameplay verification.
+ */
+contract Equle is Ownable {
+
+    
+    /*/////////////////ERRORS///////////////////////////*/
+    
+    error MaxAttemptsReached(uint8 currentAttempts);
+    error GameAlreadyWon(address player, uint256 gameId);
+    error NoAttemptsYet(address player, uint256 gameId);
+    error DecryptionNotReady(address player, uint256 gameId);
+
+
+    /*//////////////STATE VARIABLES//////////////*/
+
+    uint256 public immutable startTimestamp;
+    uint256 public constant DAY = 1 days;
+    uint256 public constant MAX_ATTEMPTS = 5;
+    euint16 public ZERO;
+    euint16 public ONE;
+    euint16 public TWO;
+
+
+    /// @notice Emitted when a player submits a guess
+    event GuessSubmitted(
+        address indexed player,
+        uint256 indexed gameId,
+        uint8 attemptNumber,
+        euint128 equationGuess,
+        euint16 resultGuess,
+        euint16 resultFeedback
+    );
+
+    /// @notice Emitted when a game is finalized for decryption
+    event GameFinalized(
+        address indexed player,
+        uint256 indexed gameId,
+        uint8 attemptNumber
+    );
+
+    /// @notice Emitted when decryption is completed and win status determined
+    event GameCompleted(
+        address indexed player,
+        uint256 indexed gameId,
+        bool won,
+        uint8 totalAttempts
+    );
+
+    /**
+     * @notice Represents a player's game state for a specific game day
+     * @dev Stores all attempts and results for privacy-preserving gameplay
+     */
     struct PlayerGameState {
         euint128[5] equationGuesses;    // Array of all equation attempts (max 5 attempts)
         euint128[5] equationXor;        // Array of all equations xor attempts (max 5 attempts)
@@ -40,6 +90,10 @@ contract Equle is Ownable {
     mapping(uint256 => euint128) public gameEquation;
     
 
+    /**
+     * @notice Initializes the Equle contract with encrypted constants and game start time
+     * @dev Sets up FHE constants (0, 1, 2) and allows contract access to them
+     */
     constructor() Ownable(msg.sender) {
         startTimestamp = block.timestamp;
         ZERO = FHE.asEuint16(0);
@@ -51,17 +105,27 @@ contract Equle is Ownable {
     }
 
 
+    /**
+     * @notice Submit a guess for both the equation and its result
+     * @dev Stores the guess, performs XOR comparison with target equation, and checks result accuracy
+     * @param equationGuess The encrypted equation guess from the player
+     * @param resultGuess The encrypted result guess from the player
+     */
     function guess(InEuint128 memory equationGuess, InEuint16 memory resultGuess) public {
         uint256 gameId = getCurrentGameId();
         euint128 eqGuess = FHE.asEuint128(equationGuess);
         euint16 result = FHE.asEuint16(resultGuess);
         uint8 currentAttempt = playerStates[gameId][msg.sender].currentAttempt;
 
-        // check and ++ userr atempt
-        require(currentAttempt < 5, "You have reached the maximum number of attempts");
+        // check and ++ user attempt
+        if (currentAttempt >= 5) {
+            revert MaxAttemptsReached(currentAttempt);
+        }
         playerStates[gameId][msg.sender].currentAttempt++;
 
-        require(!playerStates[gameId][msg.sender].hasWon, "You have already won");
+        if (playerStates[gameId][msg.sender].hasWon) {
+            revert GameAlreadyWon(msg.sender, gameId);
+        }
 
 
         // store the inputs
@@ -88,41 +152,88 @@ contract Equle is Ownable {
 
         FHE.allowSender(playerStates[gameId][msg.sender].resultAnswers[currentAttempt]);
         FHE.allowThis(playerStates[gameId][msg.sender].resultAnswers[currentAttempt]);
+
+        emit GuessSubmitted(
+            msg.sender,
+            gameId,
+            currentAttempt,
+            eqGuess,
+            result,
+            resultAnswer
+        );
     }
     
+    /**
+     * @notice Compares user's result guess with the target result
+     * @dev Returns 0 for correct, 1 for too low, 2 for too high (like Wordle feedback)
+     * @param userGuess The encrypted user's result guess
+     * @param targetResult The encrypted target result
+     * @return resultAnswer Encrypted comparison result (0=correct, 1=too low, 2=too high)
+     */
     function _resultCheck(euint16 userGuess, euint16 targetResult) private returns(euint16 resultAnswer) {
         // lt = 1, eq = 0, gt = 2
-        ebool isResultCorrect = FHE.eq(userGuess, targetResult);
-        resultAnswer = FHE.select(isResultCorrect, ZERO, FHE.select(FHE.lt(userGuess, targetResult), ONE, TWO));
-
+      ebool isEqual = FHE.eq(userGuess, targetResult);
+      ebool userIsLower = FHE.lt(userGuess, targetResult);
+      
+      return FHE.select(isEqual, ZERO, FHE.select(userIsLower, ONE, TWO));
     }
 
 
-    // ui should  display finalize button when user get to the correct answer
+    /**
+     * @notice Initiates decryption of the player's last equation XOR result
+     * @dev Must be called after the player believes they have the correct answer
+     */
     function finalizeGame() public {
         uint256 gameId = getCurrentGameId();
+        
+        if (playerStates[gameId][msg.sender].currentAttempt == 0) {
+            revert NoAttemptsYet(msg.sender, gameId);
+        }
+        
         uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
 
         FHE.decrypt(playerStates[gameId][msg.sender].equationXor[lastAttempt]);
 
-
+        emit GameFinalized(msg.sender, gameId, lastAttempt);
     }
 
+    /**
+     * @notice Retrieves the decrypted equation XOR result and determines if player won
+     * @dev Checks if the lower 20 bits of the XOR result equal zero (indicating perfect match)
+     */
     function getDecryptedfinalizedEquation() public {
         uint256 gameId = getCurrentGameId();
+        
+        if (playerStates[gameId][msg.sender].currentAttempt == 0) {
+            revert NoAttemptsYet(msg.sender, gameId);
+        }
+        
         uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
 
         (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(playerStates[gameId][msg.sender].equationXor[lastAttempt]);
-        if (!decrypted)
-            revert("Value is not ready");
+        if (!decrypted) {
+            revert DecryptionNotReady(msg.sender, gameId);
+        }
 
         uint128 mask = (1 << 20) - 1; // Creates mask 0x000FFFFF (20 bits of 1s)
         uint128 lower20Bits = value & mask;
         playerStates[gameId][msg.sender].hasWon = (lower20Bits == 0);
 
+        emit GameCompleted(
+            msg.sender, 
+            gameId, 
+            playerStates[gameId][msg.sender].hasWon,
+            playerStates[gameId][msg.sender].currentAttempt
+        );
     }
 
-    //admin functions
+    /**
+     * @notice Sets the target equation and result for a specific game day (admin only)
+     * @dev Allows owner to configure daily puzzles with encrypted values
+     * @param gameId The game identifier (typically day number since contract deployment)
+     * @param equation The encrypted target equation
+     * @param result The encrypted target result
+     */
     function setGame(uint256 gameId, InEuint128 memory equation, InEuint16 memory result) external onlyOwner {
         gameEquation[gameId] = FHE.asEuint128(equation);
         gameResult[gameId] = FHE.asEuint16(result);
