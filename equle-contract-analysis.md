@@ -37,15 +37,17 @@
 - **Security**: Should be `private` with getter functions
 - **Line**: 34
 
-### 7. Incorrect Decryption Pattern
-- **Problem**: `getDecryptedfinalizedEquation()` doesn't follow multi-transaction pattern
-- **Lines**: 113-125
-- **Fix**: Split into request and retrieve functions
+### 7. Incorrect Decryption Pattern ✅ **ANALYSIS CORRECTED**
+- **Previous Analysis**: ~~`getDecryptedfinalizedEquation()` doesn't follow multi-transaction pattern~~
+- **Correction**: **Decryption pattern is CORRECT and follows FHE best practices**
+- **Pattern**: `finalizeGame()` triggers decryption, `getDecryptedfinalizedEquation()` safely retrieves result
+- **Lines**: 102-123 correctly implement the multi-transaction decryption workflow from core.md
 
-### 8. Game Timing Logic Issue
-- **Problem**: `getCurrentGameId()` starts at 1 but arrays are 0-indexed
-- **Line**: 136 `return ((block.timestamp - startTimestamp) / DAY) + 1;`
-- **Impact**: Mismatch between gameId and storage access
+### 8. Game Timing Logic Issue ✅ **ANALYSIS CORRECTED**
+- **Previous Analysis**: ~~`getCurrentGameId()` starts at 1 but arrays are 0-indexed~~
+- **Correction**: **No issue exists - gameId is only used as mapping keys, not array indices**  
+- **Usage**: `gameId` used in `playerStates[gameId]`, `gameEquation[gameId]`, `gameResult[gameId]` - all mapping keys
+- **Array indices**: Use `currentAttempt`/`lastAttempt` (0-4) which is correct for fixed-size arrays [5]
 
 ## 🔧 Optimizations
 

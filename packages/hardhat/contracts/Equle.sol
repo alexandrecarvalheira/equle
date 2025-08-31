@@ -20,6 +20,8 @@ contract Equle is Ownable {
     //     [127...100][99...80][79...60][59...40][39...20][19...0]
     //       unused     rot4     rot3     rot2     rot1     rot0
 
+    // doubts on - euint events and AA for ACL
+
 
     // for now storing all the guesses and results, improve this later
     struct PlayerGameState {
@@ -31,7 +33,7 @@ contract Equle is Ownable {
         bool hasWon;                   // Whether player has won
     }
 
-    mapping(uint256 => mapping(address => PlayerGameState)) public playerStates;
+    mapping(uint256 => mapping(address => PlayerGameState)) private playerStates;
     // mapping -> gameid -> result (target result as euint for privacy)
     mapping(uint256 => euint16) public gameResult;
     // mapping -> gameid -> equation
@@ -128,6 +130,13 @@ contract Equle is Ownable {
         FHE.allowThis(gameResult[gameId]);
     }
 
+    function getPlayerAttempts(uint256 gameId, address player) external view returns (uint8) {
+      return playerStates[gameId][player].currentAttempt;
+    }
+
+    function hasPlayerWon(uint256 gameId, address player) external view returns (bool) {
+      return playerStates[gameId][player].hasWon;
+    }
 
     function getCurrentGameId() public view returns (uint256) {
         return ((block.timestamp - startTimestamp) / DAY) + 1;
