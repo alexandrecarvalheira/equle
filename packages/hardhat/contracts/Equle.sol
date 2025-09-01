@@ -162,7 +162,7 @@ contract Equle is Ownable {
      * @return resultAnswer Encrypted comparison result (0=correct, 1=too low, 2=too high)
      */
     function _resultCheck(euint16 userGuess, euint16 targetResult) private returns(euint16 resultAnswer) {
-        // lt = 1, eq = 0, gt = 2
+        // eq = 0, lt = 1 , gt = 2
       ebool isEqual = FHE.eq(userGuess, targetResult);
       ebool userIsLower = FHE.lt(userGuess, targetResult);
       
@@ -231,13 +231,42 @@ contract Equle is Ownable {
         FHE.allowThis(gameEquation[gameId]);
         FHE.allowThis(gameResult[gameId]);
     }
+    
+    function hasPlayerWon(uint256 gameId, address player) external view returns (bool) {
+      return playerStates[gameId][player].hasWon;
+    }
 
     function getPlayerAttempts(uint256 gameId, address player) external view returns (uint8) {
       return playerStates[gameId][player].currentAttempt;
     }
 
-    function hasPlayerWon(uint256 gameId, address player) external view returns (bool) {
-      return playerStates[gameId][player].hasWon;
+    function getPlayerLastEquationGuess(uint256 gameId, address player) external view returns (euint128) {
+        return playerStates[gameId][player].lastEquationGuess;
+    }
+
+    function getPlayerLastResultGuess(uint256 gameId, address player) external view returns (euint16) {
+        return playerStates[gameId][player].lastResultGuess;
+    }
+
+    function getPlayerEquationXor(uint256 gameId, address player) external view returns (euint128) {
+        return playerStates[gameId][player].equationXor;
+    }
+
+    function getPlayerGameState(uint256 gameId, address player) external view returns (
+        euint128 lastEquationGuess,
+        euint16 lastResultGuess,
+        euint128 equationXor,
+        uint8 currentAttempt,
+        bool hasWon
+    ) {
+        PlayerGameState storage state = playerStates[gameId][player];
+        return (
+            state.lastEquationGuess,
+            state.lastResultGuess,
+            state.equationXor,
+            state.currentAttempt,
+            state.hasWon
+        );
     }
 
     function getCurrentGameId() public view returns (uint256) {
