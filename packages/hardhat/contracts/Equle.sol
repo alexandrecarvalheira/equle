@@ -45,15 +45,20 @@ contract Equle is Ownable {
     euint16 public ONE;
     euint16 public TWO;
 
+    struct AttemptData {
+        euint128 equationGuess;
+        euint16 resultGuess;
+        euint128 equationXor;
+        euint16 resultFeedback;
+    }
 
     struct PlayerGameState {
-      euint128 lastEquationGuess;  
-      euint16 lastResultGuess;     
-      euint128 equationXor;       // Only store the most recent
         uint8 currentAttempt;          // Current attempt count
         bool hasWon;                   // Whether player has won
     }
 
+    //mapping: gameid -> playerAddress -> attemptNumber -> attempt data
+    mapping(uint256 => mapping(address => mapping(uint8 => AttemptData))) private attemptData;
     //mapping: gameid -> playerAddress-> player game state
     mapping(uint256 => mapping(address => PlayerGameState)) private playerStates;
     // mapping:gameid -> result (target result as euint for privacy)
@@ -67,8 +72,7 @@ contract Equle is Ownable {
         address indexed player,
         uint256 indexed gameId,
         uint8 attemptNumber,
-        euint128 equationGuess,
-        euint16 resultGuess,
+        euint128 lastEquationXor,
         euint16 resultFeedback
     );
 
@@ -121,36 +125,39 @@ contract Equle is Ownable {
         }
 
 
-        // store the inputs
-        playerStates[gameId][msg.sender].lastEquationGuess = eqGuess;
-        playerStates[gameId][msg.sender].lastResultGuess = result;
-
         //FHE operation 
-        euint128 equationXor = FHE.xor(playerStates[gameId][msg.sender].lastEquationGuess, gameEquation[gameId]);
-        playerStates[gameId][msg.sender].equationXor = equationXor;
+        euint128 equationXor = FHE.xor(eqGuess, gameEquation[gameId]);
 
         // result check
-        euint16 resultAnswer = _resultCheck(result, gameResult[gameId]);
+        euint16 resultFeedback = _resultCheck(result, gameResult[gameId]);
 
+        // store the attempt data
+        attemptData[gameId][msg.sender][currentAttempt] = AttemptData({
+            equationGuess: eqGuess,
+            resultGuess: result,
+            equationXor: equationXor,
+            resultFeedback: resultFeedback
+        });
 
         //ACL
+        FHE.allowSender(eqGuess);
+        FHE.allowThis(eqGuess);
 
-        FHE.allowSender(playerStates[gameId][msg.sender].lastEquationGuess);
-        FHE.allowThis(playerStates[gameId][msg.sender].lastEquationGuess);
-
-        FHE.allowSender(playerStates[gameId][msg.sender].lastResultGuess);
-        FHE.allowThis(playerStates[gameId][msg.sender].lastResultGuess);
+        FHE.allowSender(result);
+        FHE.allowThis(result);
         
-        FHE.allowSender(playerStates[gameId][msg.sender].equationXor);
-        FHE.allowThis(playerStates[gameId][msg.sender].equationXor);
+        FHE.allowSender(equationXor);
+        FHE.allowThis(equationXor);
+
+        FHE.allowSender(resultFeedback);
+        FHE.allowThis(resultFeedback);
 
         emit GuessSubmitted(
             msg.sender,
             gameId,
             currentAttempt,
-            eqGuess,
-            result,
-            resultAnswer
+            equationXor,
+            resultFeedback
         );
     }
     
@@ -183,8 +190,9 @@ contract Equle is Ownable {
         
         uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
 
-
-        FHE.decrypt(playerStates[gameId][msg.sender].equationXor);
+        // Get the last attempt's XOR result
+        euint128 lastEquationXor = attemptData[gameId][msg.sender][lastAttempt].equationXor;
+        FHE.decrypt(lastEquationXor);
 
         emit GameFinalized(msg.sender, gameId, lastAttempt);
     }
@@ -199,9 +207,13 @@ contract Equle is Ownable {
         if (playerStates[gameId][msg.sender].currentAttempt == 0) {
             revert NoAttemptsYet(msg.sender, gameId);
         }
-        
 
-        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(playerStates[gameId][msg.sender].equationXor);
+        uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
+
+        // Get the last attempt's XOR result
+        euint128 lastEquationXor = attemptData[gameId][msg.sender][lastAttempt].equationXor;
+
+        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(lastEquationXor);
         if (!decrypted) {
             revert DecryptionNotReady(msg.sender, gameId);
         }
@@ -231,7 +243,7 @@ contract Equle is Ownable {
         FHE.allowThis(gameEquation[gameId]);
         FHE.allowThis(gameResult[gameId]);
     }
-    
+
     function hasPlayerWon(uint256 gameId, address player) external view returns (bool) {
       return playerStates[gameId][player].hasWon;
     }
@@ -241,31 +253,43 @@ contract Equle is Ownable {
     }
 
     function getPlayerLastEquationGuess(uint256 gameId, address player) external view returns (euint128) {
-        return playerStates[gameId][player].lastEquationGuess;
+        uint8 lastAttempt = playerStates[gameId][player].currentAttempt - 1;
+        return attemptData[gameId][player][lastAttempt].equationGuess;
     }
 
     function getPlayerLastResultGuess(uint256 gameId, address player) external view returns (euint16) {
-        return playerStates[gameId][player].lastResultGuess;
+        uint8 lastAttempt = playerStates[gameId][player].currentAttempt - 1;
+        return attemptData[gameId][player][lastAttempt].resultGuess;
     }
 
     function getPlayerEquationXor(uint256 gameId, address player) external view returns (euint128) {
-        return playerStates[gameId][player].equationXor;
+        uint8 lastAttempt = playerStates[gameId][player].currentAttempt - 1;
+        return attemptData[gameId][player][lastAttempt].equationXor;
     }
 
     function getPlayerGameState(uint256 gameId, address player) external view returns (
-        euint128 lastEquationGuess,
-        euint16 lastResultGuess,
-        euint128 equationXor,
         uint8 currentAttempt,
         bool hasWon
     ) {
         PlayerGameState storage state = playerStates[gameId][player];
         return (
-            state.lastEquationGuess,
-            state.lastResultGuess,
-            state.equationXor,
             state.currentAttempt,
             state.hasWon
+        );
+    }
+
+    function getPlayerAttempt(uint256 gameId, address player, uint8 attemptNumber) external view returns (
+        euint128 equationGuess,
+        euint16 resultGuess,
+        euint128 equationXor,
+        euint16 resultFeedback
+    ) {
+        AttemptData storage attempt = attemptData[gameId][player][attemptNumber];
+        return (
+            attempt.equationGuess,
+            attempt.resultGuess,
+            attempt.equationXor,
+            attempt.resultFeedback
         );
     }
 
