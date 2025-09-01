@@ -15,6 +15,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
     // doubts on - euint events and AA for ACL
     // better pattern to have more storage on FHE results, or redo FHE on-demand?
+    // needs improvement on ownership
 
 
 /**
@@ -27,7 +28,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract Equle is Ownable {
 
     
-    /*/////////////////ERRORS///////////////////////////*/
+    //ERRORS
     
     error MaxAttemptsReached(uint8 currentAttempts);
     error GameAlreadyWon(address player, uint256 gameId);
@@ -35,7 +36,7 @@ contract Equle is Ownable {
     error DecryptionNotReady(address player, uint256 gameId);
 
 
-    /*//////////////STATE VARIABLES//////////////*/
+    //STATE VARIABLES
 
     uint256 public immutable startTimestamp;
     uint256 public constant DAY = 1 days;
@@ -45,7 +46,23 @@ contract Equle is Ownable {
     euint16 public TWO;
 
 
-    /// @notice Emitted when a player submits a guess
+    struct PlayerGameState {
+      euint128 lastEquationGuess;  
+      euint16 lastResultGuess;     
+      euint128 equationXor;       // Only store the most recent
+        uint8 currentAttempt;          // Current attempt count
+        bool hasWon;                   // Whether player has won
+    }
+
+    //mapping: gameid -> playerAddress-> player game state
+    mapping(uint256 => mapping(address => PlayerGameState)) private playerStates;
+    // mapping:gameid -> result (target result as euint for privacy)
+    mapping(uint256 => euint16) public gameResult;
+    // mapping: gameid -> equation
+    mapping(uint256 => euint128) public gameEquation;
+    
+    //EVENTS
+
     event GuessSubmitted(
         address indexed player,
         uint256 indexed gameId,
@@ -55,14 +72,12 @@ contract Equle is Ownable {
         euint16 resultFeedback
     );
 
-    /// @notice Emitted when a game is finalized for decryption
     event GameFinalized(
         address indexed player,
         uint256 indexed gameId,
         uint8 attemptNumber
     );
 
-    /// @notice Emitted when decryption is completed and win status determined
     event GameCompleted(
         address indexed player,
         uint256 indexed gameId,
@@ -70,30 +85,7 @@ contract Equle is Ownable {
         uint8 totalAttempts
     );
 
-    /**
-     * @notice Represents a player's game state for a specific game day
-     * @dev Stores all attempts and results for privacy-preserving gameplay
-     */
-    struct PlayerGameState {
-        euint128[5] equationGuesses;    // Array of all equation attempts (max 5 attempts)
-        euint128[5] equationXor;        // Array of all equations xor attempts (max 5 attempts)
-        euint16[5] resultGuesses;       // Array of all result attempts (max 5 attempts)
-        euint16[5] resultAnswers;       // Array of all result comparisons (max 5 attempts)
-        uint8 currentAttempt;          // Current attempt count
-        bool hasWon;                   // Whether player has won
-    }
 
-    mapping(uint256 => mapping(address => PlayerGameState)) private playerStates;
-    // mapping -> gameid -> result (target result as euint for privacy)
-    mapping(uint256 => euint16) public gameResult;
-    // mapping -> gameid -> equation
-    mapping(uint256 => euint128) public gameEquation;
-    
-
-    /**
-     * @notice Initializes the Equle contract with encrypted constants and game start time
-     * @dev Sets up FHE constants (0, 1, 2) and allows contract access to them
-     */
     constructor() Ownable(msg.sender) {
         startTimestamp = block.timestamp;
         ZERO = FHE.asEuint16(0);
@@ -104,6 +96,7 @@ contract Equle is Ownable {
         FHE.allowThis(TWO);
     }
 
+    //FUNCTIONS
 
     /**
      * @notice Submit a guess for both the equation and its result
@@ -118,7 +111,7 @@ contract Equle is Ownable {
         uint8 currentAttempt = playerStates[gameId][msg.sender].currentAttempt;
 
         // check and ++ user attempt
-        if (currentAttempt >= 5) {
+        if (currentAttempt >= MAX_ATTEMPTS) {
             revert MaxAttemptsReached(currentAttempt);
         }
         playerStates[gameId][msg.sender].currentAttempt++;
@@ -129,29 +122,27 @@ contract Equle is Ownable {
 
 
         // store the inputs
-        playerStates[gameId][msg.sender].equationGuesses[currentAttempt] = eqGuess;
-        playerStates[gameId][msg.sender].resultGuesses[currentAttempt] = result;
-        //FHE operation 
-        playerStates[gameId][msg.sender].equationXor[currentAttempt] = FHE.xor(eqGuess, gameEquation[gameId]);
+        playerStates[gameId][msg.sender].lastEquationGuess = eqGuess;
+        playerStates[gameId][msg.sender].lastResultGuess = result;
 
+        //FHE operation 
+        euint128 equationXor = FHE.xor(playerStates[gameId][msg.sender].lastEquationGuess, gameEquation[gameId]);
+        playerStates[gameId][msg.sender].equationXor = equationXor;
 
         // result check
         euint16 resultAnswer = _resultCheck(result, gameResult[gameId]);
-        playerStates[gameId][msg.sender].resultAnswers[currentAttempt] = resultAnswer;
 
 
         //ACL
-        FHE.allowSender(playerStates[gameId][msg.sender].equationXor[currentAttempt]);
-        FHE.allowThis(playerStates[gameId][msg.sender].equationXor[currentAttempt]);
 
-        FHE.allowSender(playerStates[gameId][msg.sender].equationGuesses[currentAttempt]);
-        FHE.allowThis(playerStates[gameId][msg.sender].equationGuesses[currentAttempt]);
+        FHE.allowSender(playerStates[gameId][msg.sender].lastEquationGuess);
+        FHE.allowThis(playerStates[gameId][msg.sender].lastEquationGuess);
 
-        FHE.allowSender(playerStates[gameId][msg.sender].resultGuesses[currentAttempt]);
-        FHE.allowThis(playerStates[gameId][msg.sender].resultGuesses[currentAttempt]);
-
-        FHE.allowSender(playerStates[gameId][msg.sender].resultAnswers[currentAttempt]);
-        FHE.allowThis(playerStates[gameId][msg.sender].resultAnswers[currentAttempt]);
+        FHE.allowSender(playerStates[gameId][msg.sender].lastResultGuess);
+        FHE.allowThis(playerStates[gameId][msg.sender].lastResultGuess);
+        
+        FHE.allowSender(playerStates[gameId][msg.sender].equationXor);
+        FHE.allowThis(playerStates[gameId][msg.sender].equationXor);
 
         emit GuessSubmitted(
             msg.sender,
@@ -192,7 +183,8 @@ contract Equle is Ownable {
         
         uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
 
-        FHE.decrypt(playerStates[gameId][msg.sender].equationXor[lastAttempt]);
+
+        FHE.decrypt(playerStates[gameId][msg.sender].equationXor);
 
         emit GameFinalized(msg.sender, gameId, lastAttempt);
     }
@@ -208,9 +200,8 @@ contract Equle is Ownable {
             revert NoAttemptsYet(msg.sender, gameId);
         }
         
-        uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
 
-        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(playerStates[gameId][msg.sender].equationXor[lastAttempt]);
+        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(playerStates[gameId][msg.sender].equationXor);
         if (!decrypted) {
             revert DecryptionNotReady(msg.sender, gameId);
         }
@@ -254,4 +245,3 @@ contract Equle is Ownable {
     }
     
 }
-
