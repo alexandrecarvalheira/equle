@@ -190,6 +190,10 @@ contract Equle is Ownable {
             revert NoAttemptsYet(msg.sender, gameId);
         }
         
+        if (playerStates[gameId][msg.sender].hasWon) {
+            revert GameAlreadyWon(msg.sender, gameId);
+        }
+        
         uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
 
         // Get the last attempt's XOR result

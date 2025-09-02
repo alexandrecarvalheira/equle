@@ -353,5 +353,18 @@ describe("Equle", function () {
       console.log("unsealedResultFeedback", unsealedResultFeedback);
       await hre.cofhe.expectResultValue(unsealedResultFeedback, 2n);
     });
+    it("Should finalize the game", async function () {});
+    it("Should revert to finalize game without attempts", async function () {});
+    it("Should revert to attempt more than 5 times", async function () {});
+    it("Should revert to game already won", async function () {});
+    it("Should lose the game on 5 attempts", async function () {});
+    describe("Getter Functions", function () {
+      it("Should return correct player win status", async function () {});
+      it("Should return correct player attempt count", async function () {});
+      it("Should return correct player last equation guess", async function () {});
+      it("Should return correct player last result guess", async function () {});
+      it("Should return correct player equation XOR", async function () {});
+      it("Should return correct player game state", async function () {});
+    });
   });
 });
