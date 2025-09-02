@@ -159,6 +159,8 @@ contract Equle is Ownable {
             equationXor,
             resultFeedback
         );
+
+    
     }
     
     /**
