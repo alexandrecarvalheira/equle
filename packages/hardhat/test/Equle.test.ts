@@ -217,6 +217,294 @@ describe("Equle", function () {
       ]);
       expect(feedback.gray).to.deep.equal([false, false, false, false, false]);
     });
+  });
+
+  describe("XOR Analysis & Wordle Feedback", function () {
+    it("Should analyze XOR for perfect match (all Green)", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      // Initialize CoFHE for the player (bob)
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      // Player makes a perfect guess
+      const playerGuess = "1+2*3"; // Same as target
+      const playerResult = 9;
+
+      const playerEquationBits = equationToAllRotations(playerGuess);
+      const [encryptedGuess] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits)] as const)
+      );
+
+      const [encryptedPlayerResult] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess, encryptedPlayerResult);
+
+      const playerAttempts = await equle.getPlayerAttempts(gameId, bob.address);
+      const playerAttempt = await equle.getPlayerAttempt(
+        gameId,
+        bob.address,
+        playerAttempts - 1n
+      );
+
+      const unsealedEquationXor = await cofhejs.unseal(
+        playerAttempt.equationXor,
+        FheTypes.Uint128
+      );
+
+      const feedback = analyzeXorResult(unsealedEquationXor.data!);
+
+      // Perfect match - all Green
+      expect(feedback.green).to.deep.equal([true, true, true, true, true]);
+      expect(feedback.yellow).to.deep.equal([
+        false,
+        false,
+        false,
+        false,
+        false,
+      ]);
+      expect(feedback.gray).to.deep.equal([false, false, false, false, false]);
+    });
+
+    it("Should analyze XOR for mixed Green/Yellow/Gray feedback", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      // Initialize CoFHE for the player (bob)
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      // Target: "1+2*3", Player guess: "2+1*3"
+      // Expected: Green=[false,true,false,true,true], Yellow=[true,false,true,false,false], Gray=[false,false,false,false,false]
+      const playerGuess = "2+1*3";
+      const playerResult = 9;
+
+      const playerEquationBits = equationToAllRotations(playerGuess);
+      const [encryptedGuess] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits)] as const)
+      );
+
+      const [encryptedPlayerResult] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess, encryptedPlayerResult);
+
+      const playerAttempts = await equle.getPlayerAttempts(gameId, bob.address);
+      const playerAttempt = await equle.getPlayerAttempt(
+        gameId,
+        bob.address,
+        playerAttempts - 1n
+      );
+
+      const unsealedEquationXor = await cofhejs.unseal(
+        playerAttempt.equationXor,
+        FheTypes.Uint128
+      );
+
+      const feedback = analyzeXorResult(unsealedEquationXor.data!);
+
+      // Target: "1+2*3", Guess: "2+1*3"
+      // Pos 0: '2' vs '1' -> Gray (2 not in target)
+      // Pos 1: '+' vs '+' -> Green (exact match)
+      // Pos 2: '1' vs '2' -> Yellow (1 exists in target at pos 0)
+      // Pos 3: '*' vs '*' -> Green (exact match)
+      // Pos 4: '3' vs '3' -> Green (exact match)
+      expect(feedback.green).to.deep.equal([false, true, false, true, true]);
+      expect(feedback.yellow).to.deep.equal([true, false, true, false, false]);
+      expect(feedback.gray).to.deep.equal([false, false, false, false, false]);
+    });
+
+    it("Should analyze XOR for all Gray feedback", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      // Target: "1+2*3", Player guess: "4-5/6" (no characters match)
+      const playerGuess = "4-5/6";
+      const playerResult = 7;
+
+      const playerEquationBits = equationToAllRotations(playerGuess);
+      const [encryptedGuess] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits)] as const)
+      );
+
+      const [encryptedPlayerResult] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess, encryptedPlayerResult);
+
+      const playerAttempts = await equle.getPlayerAttempts(gameId, bob.address);
+      const playerAttempt = await equle.getPlayerAttempt(
+        gameId,
+        bob.address,
+        playerAttempts - 1n
+      );
+
+      const unsealedEquationXor = await cofhejs.unseal(
+        playerAttempt.equationXor,
+        FheTypes.Uint128
+      );
+
+      const feedback = analyzeXorResult(unsealedEquationXor.data!);
+
+      // All characters are different from target
+      expect(feedback.green).to.deep.equal([false, false, false, false, false]);
+      expect(feedback.yellow).to.deep.equal([
+        false,
+        false,
+        false,
+        false,
+        false,
+      ]);
+      expect(feedback.gray).to.deep.equal([true, true, true, true, true]);
+    });
+
+    it("Should analyze XOR for all Yellow feedback", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      // Target: "1+2*3", Player guess: "3*2+1" (all chars exist but wrong positions)
+      const playerGuess = "3*1+2";
+      const playerResult = 9;
+
+      const playerEquationBits = equationToAllRotations(playerGuess);
+      const [encryptedGuess] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits)] as const)
+      );
+
+      const [encryptedPlayerResult] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess, encryptedPlayerResult);
+
+      const playerAttempts = await equle.getPlayerAttempts(gameId, bob.address);
+      const playerAttempt = await equle.getPlayerAttempt(
+        gameId,
+        bob.address,
+        playerAttempts - 1n
+      );
+
+      const unsealedEquationXor = await cofhejs.unseal(
+        playerAttempt.equationXor,
+        FheTypes.Uint128
+      );
+
+      const feedback = analyzeXorResult(unsealedEquationXor.data!);
+
+      // Target: "1+2*3", Guess: "3*2+1"
+      // All characters exist in target but at different positions
+      expect(feedback.green).to.deep.equal([false, false, false, false, false]);
+      expect(feedback.yellow).to.deep.equal([true, true, true, true, true]);
+      expect(feedback.gray).to.deep.equal([false, false, false, false, false]);
+    });
+
+    it("Should analyze XOR for complex mixed scenario", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      // Target: "1+2*3", Player guess: "1+4*2"
+      const playerGuess = "1+4*2";
+      const playerResult = 10;
+
+      const playerEquationBits = equationToAllRotations(playerGuess);
+      const [encryptedGuess] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits)] as const)
+      );
+
+      const [encryptedPlayerResult] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess, encryptedPlayerResult);
+
+      const playerAttempts = await equle.getPlayerAttempts(gameId, bob.address);
+      const playerAttempt = await equle.getPlayerAttempt(
+        gameId,
+        bob.address,
+        playerAttempts - 1n
+      );
+
+      const unsealedEquationXor = await cofhejs.unseal(
+        playerAttempt.equationXor,
+        FheTypes.Uint128
+      );
+
+      const feedback = analyzeXorResult(unsealedEquationXor.data!);
+
+      // Target: "1+2*3", Guess: "1+4*2"
+      // Pos 0: '1' vs '1' -> Green (exact match)
+      // Pos 1: '+' vs '+' -> Green (exact match)
+      // Pos 2: '4' vs '2' -> Gray (4 not in target)
+      // Pos 3: '*' vs '*' -> Green (exact match)
+      // Pos 4: '2' vs '3' -> Yellow (2 exists in target at pos 2)
+      expect(feedback.green).to.deep.equal([true, true, false, true, false]);
+      expect(feedback.yellow).to.deep.equal([false, false, false, false, true]);
+      expect(feedback.gray).to.deep.equal([false, false, true, false, false]);
+    });
+
+    it("Should analyze XOR for duplicate characters scenario", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      // Target: "1+2*3", Player guess: "1+1+1"
+      const playerGuess = "1+1+1";
+      const playerResult = 3;
+
+      const playerEquationBits = equationToAllRotations(playerGuess);
+      const [encryptedGuess] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits)] as const)
+      );
+
+      const [encryptedPlayerResult] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess, encryptedPlayerResult);
+
+      const playerAttempts = await equle.getPlayerAttempts(gameId, bob.address);
+      const playerAttempt = await equle.getPlayerAttempt(
+        gameId,
+        bob.address,
+        playerAttempts - 1n
+      );
+
+      const unsealedEquationXor = await cofhejs.unseal(
+        playerAttempt.equationXor,
+        FheTypes.Uint128
+      );
+
+      const feedback = analyzeXorResult(unsealedEquationXor.data!);
+
+      // Target: "1+2*3", Guess: "1+1+1"
+      // Pos 0: '1' vs '1' -> Green (exact match)
+      // Pos 1: '+' vs '+' -> Green (exact match)
+      // Pos 2: '1' vs '2' -> Yellow (1 exists in target at pos 0, but we already matched it)
+      // Pos 3: '+' vs '*' -> Yellow (+ exists in target at pos 1, but we already matched it)
+      // Pos 4: '1' vs '3' -> Yellow (1 exists in target at pos 0, but we already matched it)
+      expect(feedback.green).to.deep.equal([true, true, false, false, false]);
+      expect(feedback.yellow).to.deep.equal([false, false, true, true, true]);
+      expect(feedback.gray).to.deep.equal([false, false, false, false, false]);
+    });
+  });
+
+  describe("Result Feedback Tests", function () {
     it("Should guess correctly on 1st attempt and result feedback should be 0", async function () {
       const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
 
@@ -343,6 +631,9 @@ describe("Equle", function () {
       );
       await hre.cofhe.expectResultValue(unsealedResultFeedback, 2n);
     });
+  });
+
+  describe("Game Finalization", function () {
     it("Should finalize the game", async function () {
       const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
 
@@ -465,6 +756,9 @@ describe("Equle", function () {
       const hasWon2nd = await equle.hasPlayerWon(gameId, bob.address);
       expect(hasWon2nd).to.equal(true);
     });
+  });
+
+  describe("Error Conditions", function () {
     it("Should revert to finalize game without attempts", async function () {
       const { equle, bob } = await loadFixture(deployWithGameSetup);
 
@@ -646,13 +940,272 @@ describe("Equle", function () {
         equle.connect(bob).finalizeGame()
       ).to.be.revertedWithCustomError(equle, "GameAlreadyWon");
     });
-    describe("Getter Functions", function () {
-      it("Should return correct player win status", async function () {});
-      it("Should return correct player attempt count", async function () {});
-      it("Should return correct player last equation guess", async function () {});
-      it("Should return correct player last result guess", async function () {});
-      it("Should return correct player equation XOR", async function () {});
-      it("Should return correct player game state", async function () {});
+  });
+
+  describe("Getter Functions", function () {
+    it("Should return correct player win status", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      // Initially should be false
+      let hasWon = await equle.hasPlayerWon(gameId, bob.address);
+      expect(hasWon).to.equal(false);
+
+      // Initialize CoFHE for the player (bob)
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      // Player makes a winning guess
+      const playerGuess = "1+2*3";
+      const playerResult = 9;
+
+      const playerEquationBits = equationToAllRotations(playerGuess);
+      const [encryptedGuess] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits)] as const)
+      );
+
+      const [encryptedPlayerResult] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess, encryptedPlayerResult);
+      await equle.connect(bob).finalizeGame();
+      await time.increase(100);
+      await equle.connect(bob).getDecryptedfinalizedEquation();
+
+      // Should now be true
+      hasWon = await equle.hasPlayerWon(gameId, bob.address);
+      expect(hasWon).to.equal(true);
+    });
+
+    it("Should return correct player attempt count", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      // Initially should be 0
+      let attemptCount = await equle.getPlayerAttempts(gameId, bob.address);
+      expect(attemptCount).to.equal(0);
+
+      // Initialize CoFHE for the player (bob)
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      // Make first guess
+      const playerGuess1 = "5-7/6";
+      const playerResult1 = 8;
+
+      const playerEquationBits1 = equationToAllRotations(playerGuess1);
+      const [encryptedGuess1] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits1)] as const)
+      );
+
+      const [encryptedPlayerResult1] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult1))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess1, encryptedPlayerResult1);
+
+      // Should be 1 after first guess
+      attemptCount = await equle.getPlayerAttempts(gameId, bob.address);
+      expect(attemptCount).to.equal(1);
+
+      // Make second guess
+      const playerGuess2 = "1+2*3";
+      const playerResult2 = 9;
+
+      const playerEquationBits2 = equationToAllRotations(playerGuess2);
+      const [encryptedGuess2] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits2)] as const)
+      );
+
+      const [encryptedPlayerResult2] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult2))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess2, encryptedPlayerResult2);
+
+      // Should be 2 after second guess
+      attemptCount = await equle.getPlayerAttempts(gameId, bob.address);
+      expect(attemptCount).to.equal(2);
+    });
+
+    it("Should return correct player last equation guess", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      // Initialize CoFHE for the player (bob)
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      const playerGuess = "1+2*3";
+      const playerResult = 9;
+
+      const playerEquationBits = equationToAllRotations(playerGuess);
+      const [encryptedGuess] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits)] as const)
+      );
+
+      const [encryptedPlayerResult] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess, encryptedPlayerResult);
+
+      // Get the last equation guess
+      const lastEquationGuess = await equle.getPlayerLastEquationGuess(
+        gameId,
+        bob.address
+      );
+
+      // Unseal and verify it matches what we sent
+      const unsealedEquationGuess = await cofhejs.unseal(
+        lastEquationGuess,
+        FheTypes.Uint128
+      );
+
+      expect(unsealedEquationGuess.data).to.equal(playerEquationBits);
+    });
+
+    it("Should return correct player last result guess", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      // Initialize CoFHE for the player (bob)
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      const playerGuess = "1+2*3";
+      const playerResult = 9;
+
+      const playerEquationBits = equationToAllRotations(playerGuess);
+      const [encryptedGuess] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits)] as const)
+      );
+
+      const [encryptedPlayerResult] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess, encryptedPlayerResult);
+
+      // Get the last result guess
+      const lastResultGuess = await equle.getPlayerLastResultGuess(
+        gameId,
+        bob.address
+      );
+
+      // Unseal and verify it matches what we sent
+      const unsealedResultGuess = await cofhejs.unseal(
+        lastResultGuess,
+        FheTypes.Uint16
+      );
+
+      expect(unsealedResultGuess.data).to.equal(BigInt(playerResult));
+    });
+
+    it("Should return correct player equation XOR", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      // Initialize CoFHE for the player (bob)
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      const playerGuess = "419*3"; // Different from target "1+2*3"
+      const playerResult = 9;
+
+      const playerEquationBits = equationToAllRotations(playerGuess);
+      const [encryptedGuess] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits)] as const)
+      );
+
+      const [encryptedPlayerResult] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess, encryptedPlayerResult);
+
+      // Get the equation XOR
+      const equationXor = await equle.getPlayerEquationXor(gameId, bob.address);
+
+      // Unseal and verify it's non-zero (since guess != target)
+      const unsealedEquationXor = await cofhejs.unseal(
+        equationXor,
+        FheTypes.Uint128
+      );
+
+      // Should not be zero since the guess is different from target
+      expect(unsealedEquationXor.data).to.not.equal(0n);
+
+      // Verify XOR analysis works
+      const feedback = analyzeXorResult(unsealedEquationXor.data!);
+      expect(feedback.green).to.not.deep.equal([true, true, true, true, true]);
+    });
+
+    it("Should return correct player game state", async function () {
+      const { equle, bob, gameId } = await loadFixture(deployWithGameSetup);
+
+      // Initially should be 0 attempts and not won
+      let [currentAttempt, hasWon] = await equle.getPlayerGameState(
+        gameId,
+        bob.address
+      );
+      expect(currentAttempt).to.equal(0);
+      expect(hasWon).to.equal(false);
+
+      // Initialize CoFHE for the player (bob)
+      await hre.cofhe.expectResultSuccess(
+        hre.cofhe.initializeWithHardhatSigner(bob)
+      );
+
+      // Make a losing guess first
+      const playerGuess1 = "5-7/6";
+      const playerResult1 = 8;
+
+      const playerEquationBits1 = equationToAllRotations(playerGuess1);
+      const [encryptedGuess1] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits1)] as const)
+      );
+
+      const [encryptedPlayerResult1] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult1))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess1, encryptedPlayerResult1);
+
+      // Should be 1 attempt and not won
+      [currentAttempt, hasWon] = await equle.getPlayerGameState(
+        gameId,
+        bob.address
+      );
+      expect(currentAttempt).to.equal(1);
+      expect(hasWon).to.equal(false);
+
+      // Make a winning guess
+      const playerGuess2 = "1+2*3";
+      const playerResult2 = 9;
+
+      const playerEquationBits2 = equationToAllRotations(playerGuess2);
+      const [encryptedGuess2] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint128(playerEquationBits2)] as const)
+      );
+
+      const [encryptedPlayerResult2] = await hre.cofhe.expectResultSuccess(
+        cofhejs.encrypt([Encryptable.uint16(BigInt(playerResult2))] as const)
+      );
+
+      await equle.connect(bob).guess(encryptedGuess2, encryptedPlayerResult2);
+      await equle.connect(bob).finalizeGame();
+      await time.increase(100);
+      await equle.connect(bob).getDecryptedfinalizedEquation();
+
+      // Should be 2 attempts and won
+      [currentAttempt, hasWon] = await equle.getPlayerGameState(
+        gameId,
+        bob.address
+      );
+      expect(currentAttempt).to.equal(2);
+      expect(hasWon).to.equal(true);
     });
   });
 });
