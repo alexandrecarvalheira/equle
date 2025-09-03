@@ -63,21 +63,20 @@ describe("Equle", function () {
     };
   }
 
+  beforeEach(function () {
+    if (!hre.cofhe.isPermittedEnvironment("MOCK")) this.skip();
+
+    // NOTE: Uncomment for global logging
+    // hre.cofhe.mocks.enableLogs()
+  });
+
+  afterEach(function () {
+    if (!hre.cofhe.isPermittedEnvironment("MOCK")) return;
+
+    // NOTE: Uncomment for global logging
+    // hre.cofhe.mocks.disableLogs()
+  });
   describe("Functionality", function () {
-    beforeEach(function () {
-      if (!hre.cofhe.isPermittedEnvironment("MOCK")) this.skip();
-
-      // NOTE: Uncomment for global logging
-      // hre.cofhe.mocks.enableLogs()
-    });
-
-    afterEach(function () {
-      if (!hre.cofhe.isPermittedEnvironment("MOCK")) return;
-
-      // NOTE: Uncomment for global logging
-      // hre.cofhe.mocks.disableLogs()
-    });
-
     it("Should check gameId and advance to different game days", async function () {
       const { equle } = await loadFixture(deployEquleFixture);
 
