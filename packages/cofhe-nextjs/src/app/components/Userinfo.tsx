@@ -2,20 +2,43 @@ import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { Wallet } from "@coinbase/onchainkit/wallet";
 import { CofheStatus } from "./CofheStatus";
 import { useAccount } from "wagmi";
+import { useState, useEffect } from "react";
 
 export function UserInfo() {
   const { context } = useMiniKit();
-  const { isConnected, address } = useAccount();
+  const { isConnected } = useAccount();
+  const [isMounted, setIsMounted] = useState(false);
 
-  // If no context user and not connected, only show Wallet
-  if (!context?.user && !isConnected) {
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // If no context user and not connected, only show Wallet after mounting
+  if (!context?.user && !isMounted) {
     return (
       <nav
         className="w-full px-4 py-2 rounded-xl shadow-lg mb-4"
         style={{ backgroundColor: "#122531" }}
       >
         <div className="flex items-center justify-end max-w-2xl mx-auto relative z-50">
-          <Wallet />
+          {/* Show placeholder during hydration */}
+          <div className="h-10 w-24 bg-gray-700 rounded animate-pulse"></div>
+        </div>
+      </nav>
+    );
+  }
+
+  // If no context user and not connected (after mounting), show Wallet
+  if (!context?.user && isMounted && !isConnected) {
+    return (
+      <nav
+        className="w-full px-4 py-2 rounded-xl shadow-lg mb-4"
+        style={{ backgroundColor: "#122531" }}
+      >
+        <div className="flex items-center justify-end max-w-2xl mx-auto relative z-50">
+          <div className="relative z-50">
+            <Wallet />
+          </div>
         </div>
       </nav>
     );
@@ -56,7 +79,7 @@ export function UserInfo() {
 
         {/* Show Wallet if no context user but connected */}
         {!context?.user && isConnected && (
-          <div className="flex items-center justify-end flex-1">
+          <div className="flex items-center justify-end flex-1 relative z-50">
             <Wallet />
           </div>
         )}
