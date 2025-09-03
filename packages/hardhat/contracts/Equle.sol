@@ -40,7 +40,7 @@ contract Equle is Ownable {
 
     uint256 public immutable startTimestamp;
     uint256 public constant DAY = 1 days;
-    uint256 public constant MAX_ATTEMPTS = 5;
+    uint256 public constant MAX_ATTEMPTS = 6;
     euint16 public ZERO;
     euint16 public ONE;
     euint16 public TWO;
@@ -189,7 +189,7 @@ contract Equle is Ownable {
         if (playerStates[gameId][msg.sender].currentAttempt == 0) {
             revert NoAttemptsYet(msg.sender, gameId);
         }
-        
+
         if (playerStates[gameId][msg.sender].hasWon) {
             revert GameAlreadyWon(msg.sender, gameId);
         }
