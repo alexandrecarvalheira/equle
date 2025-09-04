@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAccount } from "wagmi";
+import { contractStore } from "../store/contractStore";
+import { useGameStore } from "../store/gameStore";
 
 type TileState = "empty" | "correct" | "present" | "absent";
 
@@ -11,26 +14,6 @@ interface Tile {
 
 const EQUATION_LENGTH = 5;
 const MAX_ATTEMPTS = 6;
-
-const EQUATION_POOL = [
-  { equation: "8*6-2", result: 46 },
-  { equation: "4+3*5", result: 35 },
-  { equation: "9/3+7", result: 10 },
-  { equation: "2*8-1", result: 15 },
-  { equation: "6+4*2", result: 20 },
-  { equation: "30/15", result: 2 },
-  { equation: "7*2+3", result: 17 },
-  { equation: "32-12", result: 20 },
-  { equation: "5*4-8", result: 12 },
-  { equation: "89-43", result: 46 },
-  { equation: "247+9", result: 256 },
-  { equation: "873*1", result: 873 },
-];
-
-const getRandomEquation = () => {
-  const randomIndex = Math.floor(Math.random() * EQUATION_POOL.length);
-  return EQUATION_POOL[randomIndex];
-};
 
 const initializeBoard = (): Tile[][] => {
   const newBoard: Tile[][] = [];
@@ -45,6 +28,27 @@ const initializeBoard = (): Tile[][] => {
 };
 
 export function NumberleGame() {
+  // Contract and wallet integration
+  const { address, isConnected } = useAccount();
+  const equleContract = contractStore((state) => state.equle);
+
+  // Game state management
+  const {
+    gameState,
+    setGameState,
+    updateCurrentAttempt,
+    addGuess,
+    setGameComplete,
+    resetGame: resetGameStore,
+    isGameStateSynced,
+    setGameStateSynced,
+  } = useGameStore();
+
+  // Current game tracking
+  const [currentGameId, setCurrentGameId] = useState<number | null>(null);
+  const [isLoadingFromContract, setIsLoadingFromContract] = useState(false);
+
+  // Legacy state (will gradually replace with gameState)
   const [board, setBoard] = useState<Tile[][]>(() => initializeBoard());
   const [currentRow, setCurrentRow] = useState(0);
   const [currentCol, setCurrentCol] = useState(0);
@@ -52,9 +56,6 @@ export function NumberleGame() {
     "playing"
   );
   const [showRules, setShowRules] = useState(false);
-  const [currentEquationData, setCurrentEquationData] = useState(() =>
-    getRandomEquation()
-  );
   const [rowResults, setRowResults] = useState<(number | null)[]>(
     new Array(MAX_ATTEMPTS).fill(null)
   );
@@ -84,58 +85,147 @@ export function NumberleGame() {
     }
 
     try {
-      // Check if it's a valid mathematical expression using left-to-right evaluation
-      const result = evaluateExpression(expression);
-      return typeof result === "number" && !isNaN(result);
+      // Basic validation - will be validated on contract
+      return true;
     } catch {
       return false;
     }
   };
 
-  const evaluateExpression = (expression: string): number => {
+  // Contract synchronization functions
+  const fetchCurrentGameId = async () => {
+    if (!equleContract) return null;
+
     try {
-      // Clean the expression
-      const cleanExpression = expression.replace(/[^0-9+\-*/()]/g, "");
+      const gameId = await equleContract.read.getCurrentGameId();
+      return Number(gameId);
+    } catch (error) {
+      console.error("Failed to fetch current game ID:", error);
+      return null;
+    }
+  };
 
-      // Parse and evaluate left-to-right
-      let result = 0;
-      let currentNumber = 0;
-      let operator = "+";
+  const fetchPlayerGameState = async (gameId: number) => {
+    if (!equleContract || !address) return null;
 
-      for (let i = 0; i < cleanExpression.length; i++) {
-        const char = cleanExpression[i];
+    try {
+      const [currentAttempt, hasWon] = await (
+        equleContract as any
+      ).read.getPlayerGameState([gameId, address]);
 
-        if (!isNaN(Number(char))) {
-          currentNumber = currentNumber * 10 + Number(char);
-        }
+      return {
+        currentAttempt: Number(currentAttempt),
+        hasWon: Boolean(hasWon),
+      };
+    } catch (error) {
+      console.error("Failed to fetch player game state:", error);
+      return null;
+    }
+  };
 
-        if (
-          ["+", "-", "*", "/"].includes(char) ||
-          i === cleanExpression.length - 1
-        ) {
-          switch (operator) {
-            case "+":
-              result = result + currentNumber;
-              break;
-            case "-":
-              result = result - currentNumber;
-              break;
-            case "*":
-              result = result * currentNumber;
-              break;
-            case "/":
-              result = result / currentNumber;
-              break;
-          }
+  const syncGameStateFromContract = async () => {
+    if (!equleContract || !address || !isConnected) return;
 
-          operator = char;
-          currentNumber = 0;
+    setIsLoadingFromContract(true);
+
+    try {
+      // Get current game ID
+      const gameId = await fetchCurrentGameId();
+      if (gameId === null) return;
+
+      setCurrentGameId(gameId);
+
+      // Get player's current state for this game
+      const playerState = await fetchPlayerGameState(gameId);
+      if (!playerState) return;
+
+      // Check if we need to sync with localStorage
+      const needsSync =
+        !gameState ||
+        !isGameStateSynced ||
+        gameState.gameId !== gameId ||
+        gameState.currentAttempt !== playerState.currentAttempt;
+
+      if (needsSync) {
+        console.log("Syncing game state from contract...", {
+          contractGameId: gameId,
+          contractAttempts: playerState.currentAttempt,
+          localGameId: gameState?.gameId,
+          localAttempts: gameState?.currentAttempt,
+        });
+
+        // Rebuild game state from contract
+        await rebuildGameStateFromContract(gameId, playerState);
+      }
+    } catch (error) {
+      console.error("Failed to sync game state:", error);
+    } finally {
+      setIsLoadingFromContract(false);
+    }
+  };
+
+  const rebuildGameStateFromContract = async (
+    gameId: number,
+    playerState: { currentAttempt: number; hasWon: boolean }
+  ) => {
+    if (!equleContract || !address) return;
+
+    try {
+      const guesses = [];
+
+      // Fetch all previous attempts from the contract
+      for (
+        let attemptIndex = 0;
+        attemptIndex < playerState.currentAttempt;
+        attemptIndex++
+      ) {
+        try {
+          const [equationGuess, resultGuess, equationXor, resultFeedback] =
+            await (equleContract as any).read.getPlayerAttempt([
+              gameId,
+              address,
+              attemptIndex,
+            ]);
+
+          // TODO: Unseal encrypted XOR result using CoFHE.js, then use utils.ts functions
+          // 1. Unseal equationXor and resultFeedback using CoFHE.js
+          // 2. Use utils.ts functions to process unsealed XOR values into feedback
+          // For now, create a placeholder guess
+          const guess = {
+            equation: `Attempt ${attemptIndex + 1}`, // Placeholder - need to decrypt/process
+            result: "0", // Placeholder - need to decrypt/process
+            feedback: Array(5).fill("empty" as const), // Will be generated from utils.ts functions
+          };
+
+          guesses.push(guess);
+
+          console.log(`Fetched attempt ${attemptIndex}:`, {
+            equationGuess: equationGuess.toString(),
+            resultGuess: resultGuess.toString(),
+            equationXor: equationXor.toString(),
+            resultFeedback: resultFeedback.toString(),
+          });
+        } catch (error) {
+          console.error(`Failed to fetch attempt ${attemptIndex}:`, error);
+          // Continue with other attempts even if one fails
         }
       }
 
-      return result;
-    } catch {
-      return NaN;
+      const newGameState = {
+        gameId,
+        currentAttempt: playerState.currentAttempt,
+        guesses,
+        hasWon: playerState.hasWon,
+        isGameComplete: playerState.hasWon || playerState.currentAttempt >= 6,
+        maxAttempts: 6,
+      };
+
+      setGameState(newGameState);
+      setGameStateSynced(true);
+
+      console.log("Game state rebuilt from contract:", newGameState);
+    } catch (error) {
+      console.error("Failed to rebuild game state from contract:", error);
     }
   };
 
@@ -163,8 +253,9 @@ export function NumberleGame() {
     return /^[0-9+\-*/]$/.test(key);
   };
 
-  const submitGuess = () => {
+  const submitGuess = async () => {
     if (currentCol !== EQUATION_LENGTH) return;
+    if (!equleContract || !address || !isConnected) return;
 
     const currentGuess = board[currentRow]
       .map((tile: Tile) => tile.value)
@@ -181,75 +272,25 @@ export function NumberleGame() {
     }
 
     setWarningMessage("");
+    setIsLoadingFromContract(true);
 
-    const guessResult = evaluateExpression(currentGuess);
-    const newBoard = [...board];
+    try {
+      // Submit guess to contract - contract will handle feedback and game state
+      // TODO: Implement contract submission
+      console.log("Submitting guess to contract:", currentGuess);
 
-    // Provide Wordle-style feedback: exact position match vs presence
-    for (let i = 0; i < EQUATION_LENGTH; i++) {
-      const guessChar = currentGuess[i];
-      const targetChar = currentEquationData.equation[i];
-
-      if (guessChar === targetChar) {
-        newBoard[currentRow][i].state = "correct";
-      } else if (currentEquationData.equation.includes(guessChar)) {
-        newBoard[currentRow][i].state = "present";
-      } else {
-        newBoard[currentRow][i].state = "absent";
+      // For now, just move to next row - this will be replaced with contract logic
+      if (currentRow < MAX_ATTEMPTS - 1) {
+        setCurrentRow(currentRow + 1);
+        setCurrentCol(0);
       }
+    } catch (error) {
+      console.error("Error submitting guess:", error);
+      setWarningMessage("Error submitting guess. Please try again.");
+      setTimeout(() => setWarningMessage(""), 3000);
+    } finally {
+      setIsLoadingFromContract(false);
     }
-
-    setBoard(newBoard);
-
-    // Update keyboard status based on feedback
-    const newKeyboardStatus = { ...keyboardStatus };
-    for (let i = 0; i < EQUATION_LENGTH; i++) {
-      const guessChar = currentGuess[i];
-      const currentStatus = newKeyboardStatus[guessChar];
-      const newStatus = newBoard[currentRow][i].state;
-
-      // Only update if the new status is "better" than the current one
-      // Priority: correct > present > absent
-      if (
-        !currentStatus ||
-        (currentStatus === "absent" &&
-          (newStatus === "present" || newStatus === "correct")) ||
-        (currentStatus === "present" && newStatus === "correct")
-      ) {
-        newKeyboardStatus[guessChar] = newStatus;
-      }
-    }
-    setKeyboardStatus(newKeyboardStatus);
-
-    // Store the result for this row
-    const newRowResults = [...rowResults];
-    newRowResults[currentRow] = guessResult;
-    setRowResults(newRowResults);
-
-    // Check for exact equation match (win condition)
-    if (currentGuess === currentEquationData.equation) {
-      setGameStatus("won");
-    }
-
-    if (
-      currentGuess !== currentEquationData.equation &&
-      currentRow === MAX_ATTEMPTS - 1
-    ) {
-      setGameStatus("lost");
-    } else if (currentGuess !== currentEquationData.equation) {
-      setCurrentRow(currentRow + 1);
-      setCurrentCol(0);
-    }
-  };
-
-  const resetGame = () => {
-    setCurrentRow(0);
-    setCurrentCol(0);
-    setGameStatus("playing");
-    setRowResults(new Array(MAX_ATTEMPTS).fill(null));
-    setBoard(initializeBoard());
-    setCurrentEquationData(getRandomEquation());
-    setKeyboardStatus({});
   };
 
   const getTileStyle = (state: TileState): string => {
@@ -300,15 +341,8 @@ export function NumberleGame() {
       return `${baseStyle} bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500`;
     }
 
-    if (result === currentEquationData.result) {
-      return `${baseStyle} bg-green-500 text-white`;
-    } else if (result < currentEquationData.result) {
-      // Too low - blue/cyan colors
-      return `${baseStyle} bg-cyan-400 text-white`;
-    } else {
-      // Too high - red/orange colors
-      return `${baseStyle} bg-red-400 text-white`;
-    }
+    // Default styling - actual feedback will come from contract
+    return `${baseStyle} bg-gray-400 text-white`;
   };
 
   const getResultDisplay = (
@@ -320,32 +354,31 @@ export function NumberleGame() {
     const value = Number.isInteger(result)
       ? result.toString()
       : result.toFixed(2);
-    let arrow = "";
 
-    if (result !== currentEquationData.result) {
-      arrow = result < currentEquationData.result ? "↑" : "↓";
-    }
-
-    return { value, arrow };
+    // Arrow hints will come from contract feedback
+    return { value, arrow: "" };
   };
 
   const getResultTooltip = (rowIndex: number): string => {
     const result = rowResults[rowIndex];
     if (result === null) return "Result will appear here";
 
-    if (result === currentEquationData.result) {
-      return "Perfect! Your result matches the target";
-    } else if (result < currentEquationData.result) {
-      return `Too low. Try a higher result.`;
-    } else {
-      return `Too high. Try a lower result.`;
-    }
+    // Tooltip feedback will come from contract
+    return `Result: ${result}`;
   };
 
   const handleVirtualKeyboard = (key: string) => {
     handleKeyPress(key);
   };
 
+  // Contract sync effect - runs when contract or wallet state changes
+  useEffect(() => {
+    if (equleContract && address && isConnected) {
+      syncGameStateFromContract();
+    }
+  }, [equleContract, address, isConnected]);
+
+  // Keyboard handler effect
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       handleKeyPress(event.key);
@@ -355,7 +388,7 @@ export function NumberleGame() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [board, currentRow, currentCol, gameStatus, currentEquationData.result]);
+  }, [board, currentRow, currentCol, gameStatus]);
 
   return (
     <div
@@ -446,42 +479,6 @@ export function NumberleGame() {
               </div>
             </div>
           ))}
-
-          {/* Solution section - only shown when game is lost */}
-          {gameStatus === "lost" && (
-            <div className="mt-4 pt-4 border-t-2 border-gray-300 dark:border-gray-600">
-              {/* Solution label */}
-              <div className="text-center mb-2">
-                <span className="text-xl font-bold text-white">Solution</span>
-              </div>
-
-              {/* Solution row */}
-              <div className="flex gap-2 items-center">
-                <div className="grid grid-cols-5 gap-2">
-                  {currentEquationData.equation
-                    .split("")
-                    .map((char, colIndex) => (
-                      <div
-                        key={colIndex}
-                        className="w-12 h-12 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300 bg-green-500 text-white shadow-lg"
-                      >
-                        {char}
-                      </div>
-                    ))}
-                </div>
-
-                {/* Solution equals sign */}
-                <span className="text-lg font-bold text-gray-600 dark:text-gray-400 mx-1">
-                  =
-                </span>
-
-                {/* Solution result tile */}
-                <div className="w-12 h-12 rounded flex items-center justify-center text-lg font-bold bg-green-500 text-white shadow-lg">
-                  {currentEquationData.result}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -535,7 +532,7 @@ export function NumberleGame() {
         </div>
       </div>
 
-      {/* Win/Loss Message and Play Again Button - shown when game is over */}
+      {/* Win/Loss Message - shown when game is over */}
       {gameStatus !== "playing" && (
         <div className="mt-6 text-center relative z-10">
           {gameStatus === "won" ? (
@@ -557,13 +554,6 @@ export function NumberleGame() {
               </div>
             </div>
           )}
-          <button
-            onClick={resetGame}
-            className="px-6 py-2 text-white rounded-lg font-semibold transition-colors duration-200 hover:opacity-80"
-            style={{ backgroundColor: "#0AD9DC" }}
-          >
-            Play Again
-          </button>
         </div>
       )}
 

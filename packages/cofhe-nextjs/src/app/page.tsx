@@ -3,8 +3,6 @@
 // Force dynamic rendering, skip prerendering
 export const dynamic = "force-dynamic";
 
-import { CofheStatus } from "./components/CofheStatus";
-
 // import { ContractInteraction } from "./components/ContractInteraction";
 import { NumberleGame } from "./components/NumberleGame";
 import { Footer } from "./components/Footer";
@@ -12,7 +10,6 @@ import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { UserInfo } from "./components/Userinfo";
-import { ContractInteraction } from "./components/ContractInteraction";
 import { contractStore } from "./store/contractStore";
 
 export default function Home() {
@@ -34,7 +31,7 @@ export default function Home() {
       if (equleContract) {
         console.log("equleContract", equleContract);
         try {
-          const gameId = await equleContract.getCurrentGameId();
+          const gameId = await equleContract.read.getCurrentGameId();
           setCurrentGameId(Number(gameId));
         } catch (error) {
           console.error("Failed to fetch current game ID:", error);

@@ -1,6 +1,6 @@
 import { baseSepolia, base, arbitrumSepolia } from "wagmi/chains";
 import { createConfig, http } from "wagmi";
-import { coinbaseWallet, injected } from "wagmi/connectors";
+import { coinbaseWallet } from "wagmi/connectors";
 import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
 
 export const wagmiConfig = createConfig({
