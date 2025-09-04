@@ -2,11 +2,13 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type CellState = "correct" | "present" | "absent" | "empty";
+export type ResultFeedback = "equal" | "less" | "greater";
 
 export interface GuessData {
   equation: string;
   result: string;
   feedback: CellState[];
+  resultFeedback: ResultFeedback;
 }
 
 export interface GameState {

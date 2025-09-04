@@ -192,6 +192,22 @@ function analyzeXorResult(xorResult: bigint): {
   return { green, yellow, gray };
 }
 
+function extractOriginalEquation(rotatedBigInt: bigint): string {
+  // Convert the 100-bit bigint to binary string
+  const fullBinaryString = rotatedBigInt.toString(2).padStart(100, "0");
+  
+  // Extract rot0 (rightmost 20 bits, which is the original equation)
+  // The structure is: [rot4][rot3][rot2][rot1][rot0] (left to right)
+  // So rot0 is at positions 80-99 (20 bits)
+  const rot0BinaryString = fullBinaryString.slice(80, 100);
+  
+  // Convert the 20-bit rot0 back to bigint
+  const rot0BigInt = BigInt("0b" + rot0BinaryString);
+  
+  // Use the existing bitsToEquation function to convert back to string
+  return bitsToEquation(rot0BigInt);
+}
+
 // Export functions
 export {
   equationToBits,
@@ -199,4 +215,5 @@ export {
   equationToAllRotations,
   equationToAllSame,
   analyzeXorResult,
+  extractOriginalEquation,
 };
