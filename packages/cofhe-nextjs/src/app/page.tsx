@@ -9,21 +9,42 @@ import { CofheStatus } from "./components/CofheStatus";
 import { NumberleGame } from "./components/NumberleGame";
 import { Footer } from "./components/Footer";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { UserInfo } from "./components/Userinfo";
 import { ContractInteraction } from "./components/ContractInteraction";
+import { contractStore } from "./store/contractStore";
 
 export default function Home() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { address } = useAccount();
   const { isConnected } = useAccount();
+  const [currentGameId, setCurrentGameId] = useState<number | null>(null);
+
+  const equleContract = contractStore((state) => state.equle);
 
   useEffect(() => {
     if (!isFrameReady) {
       setFrameReady();
     }
   }, [isFrameReady, setFrameReady]);
+
+  useEffect(() => {
+    const fetchGameId = async () => {
+      if (equleContract) {
+        console.log("equleContract", equleContract);
+        try {
+          const gameId = await equleContract.getCurrentGameId();
+          setCurrentGameId(Number(gameId));
+        } catch (error) {
+          console.error("Failed to fetch current game ID:", error);
+        }
+      }
+    };
+
+    fetchGameId();
+  }, [equleContract]);
+
   console.log("isConnected", address);
   return (
     <div
@@ -45,9 +66,17 @@ export default function Home() {
               </p>
             </header>
 
+            {/* Game Day Display */}
+            {currentGameId !== null && (
+              <div className="text-center mb-4">
+                <p className="text-lg font-semibold text-white">
+                  Day <span style={{ color: "#0AD9DC" }}>{currentGameId}</span>
+                </p>
+              </div>
+            )}
+
             <div className="mt-8">
               <NumberleGame />
-              <ContractInteraction />
             </div>
           </div>
         </div>

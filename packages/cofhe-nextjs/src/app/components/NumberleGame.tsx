@@ -1,12 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  useAccount,
-  useWriteContract,
-  useReadContract,
-  useWaitForTransactionReceipt,
-} from "wagmi";
 
 type TileState = "empty" | "correct" | "present" | "absent";
 

@@ -28,10 +28,17 @@ export function UserInfo() {
   // Initialize contract when wallet is connected and CoFHE is initialized
   useEffect(() => {
     const initializeContract = async () => {
-      if (isConnected && address && chain && publicClient && isInitialized && !equleContract) {
+      if (
+        isConnected &&
+        address &&
+        chain &&
+        publicClient &&
+        isInitialized &&
+        !equleContract
+      ) {
         try {
           console.log("Initializing Equle contract...");
-          
+
           const walletClient = createWalletClient({
             account: address,
             chain,
@@ -56,7 +63,15 @@ export function UserInfo() {
     };
 
     initializeContract();
-  }, [isConnected, address, chain, publicClient, isInitialized, equleContract, setEquleContract]);
+  }, [
+    isConnected,
+    address,
+    chain,
+    publicClient,
+    isInitialized,
+    equleContract,
+    setEquleContract,
+  ]);
 
   // Create read-only contract when wallet disconnects
   useEffect(() => {
@@ -67,7 +82,7 @@ export function UserInfo() {
         abi: CONTRACT_ABI,
         client: publicClient,
       });
-      
+
       setEquleContract(readOnlyContract as any);
       console.log("Created read-only Equle contract");
     }
