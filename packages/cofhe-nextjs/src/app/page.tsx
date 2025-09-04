@@ -12,6 +12,7 @@ import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useEffect } from "react";
 import { useAccount } from "wagmi";
 import { UserInfo } from "./components/Userinfo";
+import { ContractInteraction } from "./components/ContractInteraction";
 
 export default function Home() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
@@ -46,6 +47,7 @@ export default function Home() {
 
             <div className="mt-8">
               <NumberleGame />
+              <ContractInteraction />
             </div>
           </div>
         </div>
