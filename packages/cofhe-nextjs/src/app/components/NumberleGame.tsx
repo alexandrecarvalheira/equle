@@ -8,7 +8,6 @@ import {
 } from "wagmi";
 import { contractStore } from "../store/contractStore";
 import { useGameStore } from "../store/gameStore";
-import { useCofheStore } from "../store/cofheStore";
 import {
   equationToAllRotations,
   analyzeXorResult,
@@ -52,9 +51,6 @@ export function NumberleGame() {
       hash,
     });
   const equleContract = contractStore((state) => state.equle);
-
-  // CoFHE state management
-  const { isInitialized: isCofheInitialized } = useCofheStore();
 
   // Game state management
   const {
@@ -124,19 +120,13 @@ export function NumberleGame() {
 
   // Handle transaction confirmation
   useEffect(() => {
-    if (isConfirmed && pendingGuess && gameState && isCofheInitialized) {
+    if (isConfirmed && pendingGuess && gameState) {
       handleTransactionSuccess();
     }
-  }, [isConfirmed, pendingGuess, gameState, isCofheInitialized]);
+  }, [isConfirmed, pendingGuess, gameState]);
 
   const handleTransactionSuccess = async () => {
-    if (
-      !pendingGuess ||
-      !equleContract ||
-      !address ||
-      !gameState ||
-      !isCofheInitialized
-    ) {
+    if (!pendingGuess || !equleContract || !address || !gameState) {
       console.log(
         "Cannot process transaction success - missing requirements:",
         {
@@ -144,7 +134,6 @@ export function NumberleGame() {
           equleContract: !!equleContract,
           address: !!address,
           gameState: !!gameState,
-          isCofheInitialized,
         }
       );
       return;
@@ -285,10 +274,8 @@ export function NumberleGame() {
   };
 
   const syncGameStateFromContract = async () => {
-    if (!equleContract || !address || !isConnected || !isCofheInitialized) {
-      console.log(
-        "Cannot sync game state - CoFHE not initialized or missing requirements"
-      );
+    if (!equleContract || !address || !isConnected) {
+      console.log("Cannot sync game state - missing requirements");
       return;
     }
 
@@ -337,11 +324,10 @@ export function NumberleGame() {
     gameId: number,
     playerState: { currentAttempt: number; hasWon: boolean }
   ) => {
-    if (!equleContract || !address || !isCofheInitialized) {
+    if (!equleContract || !address) {
       console.log("Missing requirements for rebuilding game state:", {
         equleContract: !!equleContract,
         address: !!address,
-        isCofheInitialized,
       });
       return;
     }
@@ -510,10 +496,8 @@ export function NumberleGame() {
   // CoFHE unsealing utility function
   const unsealValue = async (encryptedValue: bigint, fheType: FheTypes) => {
     if (!address) throw new Error("Address not available");
-    if (!isCofheInitialized) throw new Error("CoFHE not initialized");
 
     const permit = await cofhejs.getPermit();
-    console.log("permit", permit);
     const unsealedValue = await cofhejs.unseal(
       encryptedValue,
       fheType,
@@ -573,12 +557,6 @@ export function NumberleGame() {
   const submitGuess = async () => {
     if (currentCol !== EQUATION_LENGTH) return;
     if (!equleContract || !address || !isConnected) return;
-
-    if (!isCofheInitialized) {
-      setWarningMessage("CoFHE is still initializing, please wait...");
-      setTimeout(() => setWarningMessage(""), 3000);
-      return;
-    }
 
     const currentGuess = currentInput;
 
@@ -798,10 +776,10 @@ export function NumberleGame() {
 
   // Contract sync effect - runs when contract or wallet state changes
   useEffect(() => {
-    if (equleContract && address && isConnected && isCofheInitialized) {
+    if (equleContract && address && isConnected) {
       syncGameStateFromContract();
     }
-  }, [equleContract, address, isConnected, isCofheInitialized]);
+  }, [equleContract, address, isConnected]);
 
   // Keyboard handler effect
   useEffect(() => {
@@ -835,17 +813,6 @@ export function NumberleGame() {
         <div className="mb-4 text-center">
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative inline-block">
             <span className="block sm:inline">{warningMessage}</span>
-          </div>
-        </div>
-      )}
-
-      {/* CoFHE Status Indicator */}
-      {!isCofheInitialized && (
-        <div className="mb-4 text-center">
-          <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-2 rounded relative inline-block">
-            <span className="block sm:inline">
-              🔐 Initializing CoFHE encryption...
-            </span>
           </div>
         </div>
       )}

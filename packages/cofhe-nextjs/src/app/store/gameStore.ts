@@ -23,6 +23,7 @@ export interface GameState {
 interface GameStore {
   gameState: GameState | null;
   setGameState: (gameState: GameState) => void;
+  clearGameState: () => void;
   updateCurrentAttempt: (attempt: number) => void;
   addGuess: (guess: GuessData) => void;
   setGameComplete: (hasWon: boolean) => void;
@@ -40,61 +41,53 @@ const defaultGameState = (gameId: number): GameState => ({
   maxAttempts: 6,
 });
 
-export const useGameStore = create<GameStore>()(
-  persist(
-    (set, get) => ({
-      gameState: null,
-      isGameStateSynced: false,
+export const useGameStore = create<GameStore>()((set, get) => ({
+  gameState: null,
+  isGameStateSynced: false,
 
-      setGameState: (gameState) => 
-        set({ gameState, isGameStateSynced: true }),
+  setGameState: (gameState) => set({ gameState, isGameStateSynced: true }),
 
-      updateCurrentAttempt: (attempt) =>
-        set((state) => ({
-          gameState: state.gameState
-            ? { ...state.gameState, currentAttempt: attempt }
-            : null,
-        })),
+  clearGameState: () => set({ gameState: null, isGameStateSynced: false }),
 
-      addGuess: (guess) =>
-        set((state) => {
-          if (!state.gameState) return state;
-          
-          const newGuesses = [...state.gameState.guesses, guess];
-          const newAttempt = state.gameState.currentAttempt + 1;
-          
-          return {
-            gameState: {
-              ...state.gameState,
-              guesses: newGuesses,
-              currentAttempt: newAttempt,
-            },
-          };
-        }),
+  updateCurrentAttempt: (attempt) =>
+    set((state) => ({
+      gameState: state.gameState
+        ? { ...state.gameState, currentAttempt: attempt }
+        : null,
+    })),
 
-      setGameComplete: (hasWon) =>
-        set((state) => ({
-          gameState: state.gameState
-            ? {
-                ...state.gameState,
-                hasWon,
-                isGameComplete: true,
-              }
-            : null,
-        })),
+  addGuess: (guess) =>
+    set((state) => {
+      if (!state.gameState) return state;
 
-      resetGame: (gameId) =>
-        set({
-          gameState: defaultGameState(gameId),
-          isGameStateSynced: false,
-        }),
+      const newGuesses = [...state.gameState.guesses, guess];
+      const newAttempt = state.gameState.currentAttempt + 1;
 
-      setGameStateSynced: (synced) =>
-        set({ isGameStateSynced: synced }),
+      return {
+        gameState: {
+          ...state.gameState,
+          guesses: newGuesses,
+          currentAttempt: newAttempt,
+        },
+      };
     }),
-    {
-      name: "equle-game-storage",
-      partialize: (state) => ({ gameState: state.gameState }),
-    }
-  )
-);
+
+  setGameComplete: (hasWon) =>
+    set((state) => ({
+      gameState: state.gameState
+        ? {
+            ...state.gameState,
+            hasWon,
+            isGameComplete: true,
+          }
+        : null,
+    })),
+
+  resetGame: (gameId) =>
+    set({
+      gameState: defaultGameState(gameId),
+      isGameStateSynced: false,
+    }),
+
+  setGameStateSynced: (synced) => set({ isGameStateSynced: synced }),
+}));

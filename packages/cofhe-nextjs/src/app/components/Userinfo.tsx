@@ -28,14 +28,7 @@ export function UserInfo() {
   // Initialize contract when wallet is connected and CoFHE is initialized
   useEffect(() => {
     const initializeContract = async () => {
-      if (
-        isConnected &&
-        address &&
-        chain &&
-        publicClient &&
-        isInitialized &&
-        !equleContract
-      ) {
+      if (isConnected && publicClient && isInitialized && !equleContract) {
         try {
           console.log("Initializing Equle contract...");
 
