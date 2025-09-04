@@ -130,14 +130,23 @@ export function NumberleGame() {
   }, [isConfirmed, pendingGuess, gameState, isCofheInitialized]);
 
   const handleTransactionSuccess = async () => {
-    if (!pendingGuess || !equleContract || !address || !gameState || !isCofheInitialized) {
-      console.log("Cannot process transaction success - missing requirements:", {
-        pendingGuess: !!pendingGuess,
-        equleContract: !!equleContract,
-        address: !!address,
-        gameState: !!gameState,
-        isCofheInitialized
-      });
+    if (
+      !pendingGuess ||
+      !equleContract ||
+      !address ||
+      !gameState ||
+      !isCofheInitialized
+    ) {
+      console.log(
+        "Cannot process transaction success - missing requirements:",
+        {
+          pendingGuess: !!pendingGuess,
+          equleContract: !!equleContract,
+          address: !!address,
+          gameState: !!gameState,
+          isCofheInitialized,
+        }
+      );
       return;
     }
 
@@ -146,9 +155,12 @@ export function NumberleGame() {
 
       // Fetch encrypted data from the contract
       const attemptIndex = gameState.currentAttempt;
-      const [equationGuess, resultGuess, equationXor, encryptedResultFeedback] = await (
-        equleContract as any
-      ).read.getPlayerAttempt([gameState.gameId, address, attemptIndex]);
+      const [equationGuess, resultGuess, equationXor, encryptedResultFeedback] =
+        await (equleContract as any).read.getPlayerAttempt([
+          gameState.gameId,
+          address,
+          attemptIndex,
+        ]);
 
       console.log("Encrypted feedback received:", {
         equationGuess: equationGuess.toString(),
@@ -274,7 +286,9 @@ export function NumberleGame() {
 
   const syncGameStateFromContract = async () => {
     if (!equleContract || !address || !isConnected || !isCofheInitialized) {
-      console.log("Cannot sync game state - CoFHE not initialized or missing requirements");
+      console.log(
+        "Cannot sync game state - CoFHE not initialized or missing requirements"
+      );
       return;
     }
 
@@ -327,7 +341,7 @@ export function NumberleGame() {
       console.log("Missing requirements for rebuilding game state:", {
         equleContract: !!equleContract,
         address: !!address,
-        isCofheInitialized
+        isCofheInitialized,
       });
       return;
     }
@@ -342,12 +356,16 @@ export function NumberleGame() {
         attemptIndex++
       ) {
         try {
-          const [equationGuess, resultGuess, equationXor, encryptedResultFeedback] =
-            await (equleContract as any).read.getPlayerAttempt([
-              gameId,
-              address,
-              attemptIndex,
-            ]);
+          const [
+            equationGuess,
+            resultGuess,
+            equationXor,
+            encryptedResultFeedback,
+          ] = await (equleContract as any).read.getPlayerAttempt([
+            gameId,
+            address,
+            attemptIndex,
+          ]);
 
           console.log(`Fetched attempt ${attemptIndex} - encrypted:`, {
             equationGuess: equationGuess.toString(),
@@ -356,19 +374,23 @@ export function NumberleGame() {
             resultFeedback: encryptedResultFeedback.toString(),
           });
 
-          const [unsealedEquation, unsealedResult, unsealedXor, unsealedResultFeedback] =
-            await Promise.all([
-              unsealValue(equationGuess as bigint, FheTypes.Uint128),
-              unsealValue(resultGuess as bigint, FheTypes.Uint16),
-              unsealValue(equationXor as bigint, FheTypes.Uint128),
-              unsealValue(encryptedResultFeedback as bigint, FheTypes.Uint8),
-            ]);
+          const [
+            unsealedEquation,
+            unsealedResult,
+            unsealedXor,
+            unsealedResultFeedback,
+          ] = await Promise.all([
+            unsealValue(equationGuess as bigint, FheTypes.Uint128),
+            unsealValue(resultGuess as bigint, FheTypes.Uint16),
+            unsealValue(equationXor as bigint, FheTypes.Uint128),
+            unsealValue(encryptedResultFeedback as bigint, FheTypes.Uint8),
+          ]);
 
           console.log("unsealedEquation", unsealedEquation?.data);
           console.log("unsealedResult", unsealedResult?.data);
           console.log("unsealedXor", unsealedXor?.data);
           console.log("unsealedResultFeedback", unsealedResultFeedback?.data);
-          
+
           // Process the unsealed data using utility functions
           const reconstructedEquation = extractOriginalEquation(
             unsealedEquation?.data as bigint
@@ -393,7 +415,8 @@ export function NumberleGame() {
           const resultFeedbackValue = Number(unsealedResultFeedback?.data || 0);
           let processedResultFeedback: "equal" | "less" | "greater" = "equal";
           if (resultFeedbackValue === 1) processedResultFeedback = "less";
-          else if (resultFeedbackValue === 2) processedResultFeedback = "greater";
+          else if (resultFeedbackValue === 2)
+            processedResultFeedback = "greater";
 
           const guess = {
             equation: reconstructedEquation,
@@ -462,10 +485,7 @@ export function NumberleGame() {
         currentNumber = currentNumber * 10 + Number(char);
       }
 
-      if (
-        ["+", "-", "*", "/"].includes(char) ||
-        i === expression.length - 1
-      ) {
+      if (["+", "-", "*", "/"].includes(char) || i === expression.length - 1) {
         switch (operator) {
           case "+":
             result = result + currentNumber;
@@ -491,7 +511,7 @@ export function NumberleGame() {
   const unsealValue = async (encryptedValue: bigint, fheType: FheTypes) => {
     if (!address) throw new Error("Address not available");
     if (!isCofheInitialized) throw new Error("CoFHE not initialized");
-    
+
     const permit = await cofhejs.getPermit();
     console.log("permit", permit);
     const unsealedValue = await cofhejs.unseal(
@@ -553,7 +573,7 @@ export function NumberleGame() {
   const submitGuess = async () => {
     if (currentCol !== EQUATION_LENGTH) return;
     if (!equleContract || !address || !isConnected) return;
-    
+
     if (!isCofheInitialized) {
       setWarningMessage("CoFHE is still initializing, please wait...");
       setTimeout(() => setWarningMessage(""), 3000);
@@ -682,16 +702,33 @@ export function NumberleGame() {
   };
 
   const getResultTileStyle = (rowIndex: number): string => {
-    const result = rowResults[rowIndex];
     const baseStyle =
       "w-12 h-12 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300";
 
-    if (result === null) {
-      return `${baseStyle} bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500`;
+    // For completed rows, get from gameState
+    if (gameState?.guesses && rowIndex < gameState.guesses.length) {
+      const guess = gameState.guesses[rowIndex];
+
+      // Color based on result feedback
+      if (guess.resultFeedback === "equal") {
+        return `${baseStyle} bg-green-500 text-white`; // Green for correct
+      } else if (guess.resultFeedback === "less") {
+        return `${baseStyle} bg-cyan-400 text-white`; // Blue for too low
+      } else if (guess.resultFeedback === "greater") {
+        return `${baseStyle} bg-red-400 text-white`; // Red for too high
+      }
     }
 
-    // Default styling - actual feedback will come from contract
-    return `${baseStyle} bg-gray-400 text-white`;
+    // For current row (if user is typing), show neutral style
+    if (
+      rowIndex === (gameState?.currentAttempt || 0) &&
+      currentInput.length === EQUATION_LENGTH
+    ) {
+      return `${baseStyle} bg-gray-400 text-white`;
+    }
+
+    // Default empty state
+    return `${baseStyle} bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500`;
   };
 
   const getResultDisplay = (
@@ -701,18 +738,21 @@ export function NumberleGame() {
     if (gameState?.guesses && rowIndex < gameState.guesses.length) {
       const guess = gameState.guesses[rowIndex];
       const value = guess.result;
-      
+
       // Get arrow based on result feedback
       let arrow = "";
       if (guess.resultFeedback === "less") arrow = "↓";
       else if (guess.resultFeedback === "greater") arrow = "↑";
       else if (guess.resultFeedback === "equal") arrow = "✓";
-      
+
       return { value, arrow };
     }
-    
+
     // For current row (if user is typing), calculate result on-the-fly
-    if (rowIndex === (gameState?.currentAttempt || 0) && currentInput.length === EQUATION_LENGTH) {
+    if (
+      rowIndex === (gameState?.currentAttempt || 0) &&
+      currentInput.length === EQUATION_LENGTH
+    ) {
       try {
         const result = calculateResult(currentInput);
         return { value: result.toString(), arrow: "" };
@@ -720,7 +760,7 @@ export function NumberleGame() {
         return { value: "", arrow: "" };
       }
     }
-    
+
     return { value: "", arrow: "" };
   };
 
@@ -732,10 +772,10 @@ export function NumberleGame() {
       if (guess.resultFeedback === "equal") feedbackText = " (Correct!)";
       else if (guess.resultFeedback === "less") feedbackText = " (Too low)";
       else if (guess.resultFeedback === "greater") feedbackText = " (Too high)";
-      
+
       return `Result: ${guess.result}${feedbackText}`;
     }
-    
+
     // For current row
     if (rowIndex === (gameState?.currentAttempt || 0)) {
       if (currentInput.length === EQUATION_LENGTH) {
@@ -748,7 +788,7 @@ export function NumberleGame() {
       }
       return "Complete equation to see result";
     }
-    
+
     return "Result will appear here";
   };
 
@@ -803,7 +843,9 @@ export function NumberleGame() {
       {!isCofheInitialized && (
         <div className="mb-4 text-center">
           <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-2 rounded relative inline-block">
-            <span className="block sm:inline">🔐 Initializing CoFHE encryption...</span>
+            <span className="block sm:inline">
+              🔐 Initializing CoFHE encryption...
+            </span>
           </div>
         </div>
       )}
@@ -863,15 +905,14 @@ export function NumberleGame() {
                 </div>
 
                 {/* Custom tooltip */}
-                {hoveredResultTile === rowIndex &&
-                  rowResults[rowIndex] !== null && (
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-10">
-                      <div className="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
-                        {getResultTooltip(rowIndex)}
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
-                      </div>
+                {hoveredResultTile === rowIndex && (
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-10">
+                    <div className="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
+                      {getResultTooltip(rowIndex)}
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
                     </div>
-                  )}
+                  </div>
+                )}
               </div>
             </div>
           ))}
