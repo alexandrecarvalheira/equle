@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { contractStore } from "../store/contractStore";
 import { useGameStore } from "../store/gameStore";
+import { equationToAllRotations } from "../../../utils";
+import { cofhejs, Encryptable, FheTypes, EncryptStep } from "cofhejs/web";
 
 type TileState = "empty" | "correct" | "present" | "absent";
 
@@ -272,18 +274,92 @@ export function NumberleGame() {
     }
 
     setWarningMessage("");
+
+    // Calculate the result using left-to-right evaluation (same as contract logic)
+    const calculateResult = (expression: string): number => {
+        let result = 0;
+        let currentNumber = 0;
+        let operator = "+";
+
+        for (let i = 0; i < expression.length; i++) {
+          const char = expression[i];
+
+          if (!isNaN(Number(char))) {
+            currentNumber = currentNumber * 10 + Number(char);
+          }
+
+          if (
+            ["+", "-", "*", "/"].includes(char) ||
+            i === expression.length - 1
+          ) {
+            switch (operator) {
+              case "+":
+                result = result + currentNumber;
+                break;
+              case "-":
+                result = result - currentNumber;
+                break;
+              case "*":
+                result = result * currentNumber;
+                break;
+              case "/":
+                result = result / currentNumber;
+                break;
+            }
+            operator = char;
+            currentNumber = 0;
+          }
+        }
+        return result;
+      };
+
+    const playerResult = calculateResult(currentGuess);
+
+    // Update UI immediately for better UX
+    const newRowResults = [...rowResults];
+    newRowResults[currentRow] = playerResult;
+    setRowResults(newRowResults);
+
+    // Move to next row immediately
+    if (currentRow < MAX_ATTEMPTS - 1) {
+      setCurrentRow(currentRow + 1);
+      setCurrentCol(0);
+    }
+
     setIsLoadingFromContract(true);
 
     try {
-      // Submit guess to contract - contract will handle feedback and game state
-      // TODO: Implement contract submission
+      if (!cofhejs) {
+        throw new Error("CoFHE not initialized");
+      }
+
       console.log("Submitting guess to contract:", currentGuess);
 
-      // For now, just move to next row - this will be replaced with contract logic
-      if (currentRow < MAX_ATTEMPTS - 1) {
-        setCurrentRow(currentRow + 1);
-        setCurrentCol(0);
-      }
+      // Convert equation to bit representation using utility function
+      const playerEquationBits = equationToAllRotations(currentGuess);
+
+      // Encrypt the guess and result using CoFHE.js
+      const encryptedGuess = await cofhejs.encrypt([
+        Encryptable.uint128(playerEquationBits),
+      ] as const);
+
+      const encryptedPlayerResult = await cofhejs.encrypt([
+        Encryptable.uint16(BigInt(playerResult)),
+      ] as const);
+
+      // Submit to contract
+      await (equleContract as any).write.guess([
+        encryptedGuess,
+        encryptedPlayerResult,
+      ]);
+
+      console.log("Guess submitted successfully:", {
+        equation: currentGuess,
+        result: playerResult,
+      });
+
+      // Sync game state after submission
+      await syncGameStateFromContract();
     } catch (error) {
       console.error("Error submitting guess:", error);
       setWarningMessage("Error submitting guess. Please try again.");

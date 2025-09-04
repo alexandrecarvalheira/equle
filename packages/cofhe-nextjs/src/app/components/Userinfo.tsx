@@ -53,7 +53,7 @@ export function UserInfo() {
               wallet: walletClient,
             },
           });
-
+          console.log("contract", contract);
           setEquleContract(contract as any);
           console.log("Equle contract initialized:", contract);
         } catch (error) {
