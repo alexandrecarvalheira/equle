@@ -7,7 +7,6 @@ export const dynamic = "force-dynamic";
 import { NumberleGame } from "./components/NumberleGame";
 import { NumberleGameSkeleton } from "./components/NumberleGameSkeleton";
 import { Footer } from "./components/Footer";
-import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { UserInfo } from "./components/Userinfo";
@@ -15,18 +14,11 @@ import { contractStore } from "./store/contractStore";
 import { useCofheStore } from "./store/cofheStore";
 
 export default function Home() {
-  const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { address, isConnected } = useAccount();
   const [currentGameId, setCurrentGameId] = useState<number | null>(null);
 
   const equleContract = contractStore((state) => state.equle);
   const { isInitialized: isCofheInitialized } = useCofheStore();
-
-  useEffect(() => {
-    if (!isFrameReady) {
-      setFrameReady();
-    }
-  }, [isFrameReady, setFrameReady]);
 
   useEffect(() => {
     const fetchGameId = async () => {
@@ -77,7 +69,7 @@ export default function Home() {
             <div className="mt-8">
               {isCofheInitialized && isConnected ? (
                 <NumberleGame />
-              ) : isConnected || context?.user ? (
+              ) : isConnected ? (
                 <div className="text-center py-12">
                   <div className="max-w-md mx-auto">
                     <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-300 border-t-cyan-400 mx-auto mb-4"></div>
