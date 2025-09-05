@@ -203,11 +203,31 @@ contract Equle is Ownable {
         emit GameFinalized(msg.sender, gameId, lastAttempt);
     }
 
+        function getDecryptedfinalizedEquation() public view returns (uint128) {
+        uint256 gameId = getCurrentGameId();
+        
+        if (playerStates[gameId][msg.sender].currentAttempt == 0) {
+            revert NoAttemptsYet(msg.sender, gameId);
+        }
+
+        uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
+
+        // Get the last attempt's XOR result
+        euint128 lastEquationXor = attemptData[gameId][msg.sender][lastAttempt].equationXor;
+
+        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(lastEquationXor);
+        if (!decrypted) {
+            revert DecryptionNotReady(msg.sender, gameId);
+        }
+
+        return value;
+    }
+
     /**
      * @notice Retrieves the decrypted equation XOR result and determines if player won
      * @dev Checks if the lower 20 bits of the XOR result equal zero (indicating perfect match)
      */
-    function getDecryptedfinalizedEquation() public {
+    function DecryptfinalizedEquation() public {
         uint256 gameId = getCurrentGameId();
         
         if (playerStates[gameId][msg.sender].currentAttempt == 0) {

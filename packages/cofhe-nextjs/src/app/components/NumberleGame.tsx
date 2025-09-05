@@ -5,6 +5,7 @@ import {
   useAccount,
   useWriteContract,
   useWaitForTransactionReceipt,
+  useReadContract,
 } from "wagmi";
 import { contractStore } from "../store/contractStore";
 import { useGameStore } from "../store/gameStore";
@@ -26,30 +27,26 @@ interface Tile {
 const EQUATION_LENGTH = 5;
 const MAX_ATTEMPTS = 6;
 
-const initializeBoard = (): Tile[][] => {
-  const newBoard: Tile[][] = [];
-  for (let i = 0; i < MAX_ATTEMPTS; i++) {
-    const row: Tile[] = [];
-    for (let j = 0; j < EQUATION_LENGTH; j++) {
-      row.push({ value: "", state: "empty" });
-    }
-    newBoard.push(row);
-  }
-  return newBoard;
-};
-
 export function NumberleGame() {
   // Contract and wallet integration
   const { address, isConnected } = useAccount();
+  const { writeContract, data: hash } = useWriteContract();
+  const { isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  // Read contract for polling decrypted finalized equation
   const {
-    writeContract,
-    data: hash,
-    isPending: isWritePending,
-  } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({
-      hash,
-    });
+    data: decryptedEquation,
+    refetch: refetchDecryptedEquation,
+    error: decryptedEquationError,
+  } = useReadContract({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    abi: CONTRACT_ABI,
+    functionName: "getDecryptedfinalizedEquation",
+    args: [], // No arguments
+    account: address,
+  });
   const equleContract = contractStore((state) => state.equle);
 
   // Game state management
@@ -58,40 +55,25 @@ export function NumberleGame() {
     setGameState,
     updateCurrentAttempt,
     addGuess,
-    setGameComplete,
-    resetGame: resetGameStore,
-    isGameStateSynced,
     setGameStateSynced,
   } = useGameStore();
 
-  // Current game tracking
-  const [currentGameId, setCurrentGameId] = useState<number | null>(null);
-  const [isLoadingFromContract, setIsLoadingFromContract] = useState(false);
   const [pendingGuess, setPendingGuess] = useState<{
     equation: string;
     result: number;
     rowIndex: number;
   } | null>(null);
 
-  // Legacy state (will gradually replace with gameState)
-  const [board, setBoard] = useState<Tile[][]>(() => initializeBoard());
-  const [currentRow, setCurrentRow] = useState(0);
-  const [currentCol, setCurrentCol] = useState(0);
+  // Component state
   const [currentInput, setCurrentInput] = useState("");
-  const [gameStatus, setGameStatus] = useState<"playing" | "won" | "lost">(
-    "playing"
-  );
+  const [currentCol, setCurrentCol] = useState(0);
   const [showRules, setShowRules] = useState(false);
-  const [rowResults, setRowResults] = useState<(number | null)[]>(
-    new Array(MAX_ATTEMPTS).fill(null)
-  );
-  const [keyboardStatus, setKeyboardStatus] = useState<
-    Record<string, TileState>
-  >({});
   const [hoveredResultTile, setHoveredResultTile] = useState<number | null>(
     null
   );
   const [warningMessage, setWarningMessage] = useState<string>("");
+  const [isFinalizingGame, setIsFinalizingGame] = useState(false);
+  const [finalizeMessage, setFinalizeMessage] = useState<string>("");
 
   const hasAtLeastOneOperation = (expression: string): boolean => {
     return /[+\-*/]/.test(expression);
@@ -279,14 +261,10 @@ export function NumberleGame() {
       return;
     }
 
-    setIsLoadingFromContract(true);
-
     try {
       // Get current game ID
       const gameId = await fetchCurrentGameId();
       if (gameId === null) return;
-
-      setCurrentGameId(gameId);
 
       // Get player's current state for this game
       const playerState = await fetchPlayerGameState(gameId);
@@ -315,8 +293,6 @@ export function NumberleGame() {
       }
     } catch (error) {
       console.error("Failed to sync game state:", error);
-    } finally {
-      setIsLoadingFromContract(false);
     }
   };
 
@@ -439,7 +415,7 @@ export function NumberleGame() {
   };
 
   const handleKeyPress = (key: string) => {
-    if (gameState?.isGameComplete || gameStatus !== "playing") return;
+    if (gameState?.isGameComplete || isWonButNotFinalized()) return;
 
     if (key === "Enter") {
       submitGuess();
@@ -456,6 +432,27 @@ export function NumberleGame() {
 
   const isValidInput = (key: string): boolean => {
     return /^[0-9+\-*/]$/.test(key);
+  };
+
+  // Check if the last guess is all correct (all green)
+  const isLastGuessAllCorrect = (): boolean => {
+    if (!gameState?.guesses || gameState.guesses.length === 0) return false;
+    const lastGuess = gameState.guesses[gameState.guesses.length - 1];
+    return lastGuess.feedback.every((feedback) => feedback === "correct");
+  };
+
+  // Check if game is won but not finalized yet
+  const isWonButNotFinalized = (): boolean => {
+    return isLastGuessAllCorrect() && !gameState?.hasWon;
+  };
+
+  // Check if decrypted equation is already available
+  const hasDecryptedEquation = (): boolean => {
+    return !!(
+      decryptedEquation &&
+      decryptedEquation !== "0x" &&
+      decryptedEquation !== "0x0000000000000000000000000000000000000000"
+    );
   };
 
   // Calculate the result using left-to-right evaluation (same as contract logic)
@@ -508,6 +505,231 @@ export function NumberleGame() {
     return unsealedValue;
   };
 
+  // Call DecryptFinalizedEquation when equation is already decrypted
+  const decryptFinalizedEquation = async () => {
+    if (!equleContract || !address || !isConnected) {
+      setFinalizeMessage("Contract not available");
+      return;
+    }
+
+    setIsFinalizingGame(true);
+    setFinalizeMessage("Finalizing win status...");
+
+    try {
+      // Call DecryptFinalizedEquation to update hasWon status
+      writeContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: CONTRACT_ABI,
+        functionName: "DecryptfinalizedEquation",
+        args: [],
+      });
+
+      console.log("DecryptFinalizedEquation transaction initiated");
+
+      // After transaction confirms, check player status will be handled by useEffect
+    } catch (error) {
+      console.error("Error calling DecryptFinalizedEquation:", error);
+      setFinalizeMessage("Error finalizing game. Please try again.");
+      setTimeout(() => setFinalizeMessage(""), 5000);
+      setIsFinalizingGame(false);
+    }
+  };
+
+  // Finalize game when player has won
+  const finalizeGame = async () => {
+    if (!equleContract || !address || !isConnected) {
+      setFinalizeMessage("Contract not available");
+      return;
+    }
+
+    setIsFinalizingGame(true);
+    setFinalizeMessage("Finalizing game...");
+
+    try {
+      // Call finalizeGame on the contract
+      writeContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: CONTRACT_ABI,
+        functionName: "finalizeGame",
+        args: [],
+      });
+
+      console.log("Finalize game transaction initiated");
+
+      // Wait for transaction confirmation, then start polling for decrypted equation
+    } catch (error) {
+      console.error("Error finalizing game:", error);
+      setFinalizeMessage("Error finalizing game. Please try again.");
+      setTimeout(() => setFinalizeMessage(""), 5000);
+      setIsFinalizingGame(false);
+    }
+  };
+
+  // Check if player has won on-chain and update game state
+  const checkPlayerWinStatus = async (): Promise<void> => {
+    if (!equleContract || !address || !gameState) return;
+
+    try {
+      const [currentAttempt, hasWon] = await (
+        equleContract as any
+      ).read.getPlayerGameState([gameState.gameId, address]);
+
+      if (hasWon && !gameState.hasWon) {
+        console.log("Player has won on-chain, updating game state");
+
+        // Update the game state to reflect the win
+        const updatedGameState = {
+          ...gameState,
+          hasWon: true,
+          isGameComplete: true,
+        };
+
+        setGameState(updatedGameState);
+        setGameStateSynced(true);
+
+        // Show success message and finish finalization
+        setFinalizeMessage("🎉 Game finalized successfully! 🎉");
+        setTimeout(() => {
+          setFinalizeMessage("");
+          setIsFinalizingGame(false);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error("Error checking player win status:", error);
+    }
+  };
+
+  // Effect to handle finalize game transaction confirmation and refetch decrypted equation
+  useEffect(() => {
+    if (isConfirmed && isFinalizingGame) {
+      console.log(
+        "Finalize game transaction confirmed, starting to poll for decrypted equation"
+      );
+      setFinalizeMessage("Waiting for equation decryption...");
+
+      // Start polling for decrypted equation
+      const pollDecryptedEquation = async () => {
+        try {
+          console.log("Attempting to refetch decrypted equation...");
+          const result = await refetchDecryptedEquation();
+          console.log("Refetch result:", result);
+
+          if (result.error) {
+            console.log(
+              "Function reverted (equation not ready), will retry automatically"
+            );
+            // The query will automatically retry due to retry: true
+          }
+        } catch (error) {
+          console.error("Error during refetch:", error);
+        }
+      };
+
+      pollDecryptedEquation();
+    }
+  }, [isConfirmed, isFinalizingGame, refetchDecryptedEquation]);
+
+  // Effect to handle when decrypted equation is received - ONLY when player has won
+  useEffect(() => {
+    // Only process decrypted equation if player has actually won
+    if (!isWonButNotFinalized() && !isFinalizingGame) {
+      return;
+    }
+
+    console.log("Decrypted equation state changed:", {
+      decryptedEquation,
+      error: decryptedEquationError,
+      isWonButNotFinalized: isWonButNotFinalized(),
+      isFinalizingGame,
+    });
+
+    if (
+      decryptedEquation &&
+      decryptedEquation !== "0x" &&
+      decryptedEquation !== "0x0000000000000000000000000000000000000000"
+    ) {
+      console.log("✅ Successfully got decrypted equation:", decryptedEquation);
+      setFinalizeMessage("Equation decrypted! Finalizing win status...");
+
+      // Call DecryptFinalizedEquation to update hasWon status
+      writeContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: CONTRACT_ABI,
+        functionName: "DecryptfinalizedEquation",
+        args: [],
+      });
+    } else if (
+      decryptedEquationError &&
+      (isWonButNotFinalized() || isFinalizingGame)
+    ) {
+      console.log("decryptedEquationError", decryptedEquationError);
+      console.log("❌ Equation not ready yet (function reverted), retrying...");
+      setFinalizeMessage("Waiting for equation decryption... (retrying)");
+    }
+  }, [
+    decryptedEquation,
+    decryptedEquationError,
+    isWonButNotFinalized(),
+    isFinalizingGame,
+  ]);
+
+  // Effect to refetch player status after DecryptFinalizedEquation call
+  useEffect(() => {
+    if (isConfirmed && finalizeMessage.includes("Finalizing win status")) {
+      console.log("DecryptFinalizedEquation confirmed, checking player status");
+      setFinalizeMessage("Updating win status...");
+      // Check player status after a short delay
+      setTimeout(() => {
+        checkPlayerWinStatus();
+      }, 2000);
+    }
+  }, [isConfirmed, finalizeMessage]);
+
+  // Effect to check for decrypted equation when player first wins
+  useEffect(() => {
+    if (isWonButNotFinalized()) {
+      console.log(
+        "Player won! Checking if decrypted equation is already available..."
+      );
+      refetchDecryptedEquation();
+    }
+  }, [isWonButNotFinalized(), refetchDecryptedEquation]);
+
+  // Effect to check for decrypted equation on component mount/game state load - ONLY when player has won
+  useEffect(() => {
+    const checkDecryptedEquationOnLoad = async () => {
+      // Only check if player has actually won but game is not finalized
+      if (gameState && isWonButNotFinalized() && !decryptedEquation) {
+        console.log(
+          "Game state loaded, player won but not finalized - checking for decrypted equation..."
+        );
+        console.log(
+          "Current decryptedEquation before refetch:",
+          decryptedEquation
+        );
+
+        try {
+          const result = await refetchDecryptedEquation();
+          console.log("Refetch result:", result);
+          console.log("decryptedEquation after refetch:", result.data);
+        } catch (error) {
+          console.log("Refetch failed (equation not ready):", error);
+        }
+      }
+    };
+
+    checkDecryptedEquationOnLoad();
+  }, [gameState, refetchDecryptedEquation, decryptedEquation]);
+
+  // Effect to track decryptedEquation value changes
+  useEffect(() => {
+    console.log("🔍 decryptedEquation value changed:", {
+      value: decryptedEquation,
+      hasDecryptedEquation: hasDecryptedEquation(),
+      isWonButNotFinalized: isWonButNotFinalized(),
+    });
+  }, [decryptedEquation]);
+
   // Create display board from gameState + current input
   const getDisplayBoard = (): Tile[][] => {
     const displayBoard: Tile[][] = [];
@@ -557,6 +779,7 @@ export function NumberleGame() {
   const submitGuess = async () => {
     if (currentCol !== EQUATION_LENGTH) return;
     if (!equleContract || !address || !isConnected) return;
+    if (gameState?.isGameComplete || isWonButNotFinalized()) return;
 
     const currentGuess = currentInput;
 
@@ -574,25 +797,12 @@ export function NumberleGame() {
 
     const playerResult = calculateResult(currentGuess);
 
-    // Update UI immediately for better UX
-    const newRowResults = [...rowResults];
-    newRowResults[currentRow] = playerResult;
-    setRowResults(newRowResults);
-
     // Store pending guess for transaction success handling
     setPendingGuess({
       equation: currentGuess,
       result: playerResult,
-      rowIndex: currentRow,
+      rowIndex: gameState?.currentAttempt || 0,
     });
-
-    // Move to next row immediately
-    if (currentRow < MAX_ATTEMPTS - 1) {
-      setCurrentRow(currentRow + 1);
-      setCurrentCol(0);
-    }
-
-    setIsLoadingFromContract(true);
 
     try {
       if (!cofhejs) {
@@ -630,13 +840,10 @@ export function NumberleGame() {
       });
 
       // Note: Transaction is async, game state will sync when it's mined
-      // For now, we'll sync immediately to update the UI
     } catch (error) {
       console.error("Error submitting guess:", error);
       setWarningMessage("Error submitting guess. Please try again.");
       setTimeout(() => setWarningMessage(""), 3000);
-    } finally {
-      setIsLoadingFromContract(false);
     }
   };
 
@@ -653,30 +860,14 @@ export function NumberleGame() {
     }
   };
 
-  const getKeyboardKeyStyle = (key: string) => {
-    const status = keyboardStatus[key];
+  const getKeyboardKeyStyle = () => {
     const baseClass =
       "w-8 h-10 rounded text-sm font-semibold transition-colors duration-200";
-
-    let style: React.CSSProperties = {};
-    let className = baseClass;
-
-    switch (status) {
-      case "correct":
-        style = { backgroundColor: "#10b981", color: "white" };
-        break;
-      case "present":
-        style = { backgroundColor: "#eab308", color: "white" };
-        break;
-      case "absent":
-        style = { backgroundColor: "#6b7280", color: "white" };
-        break;
-      default:
-        style = { backgroundColor: "#9ca3af", color: "white" };
-        break;
-    }
-
-    return { className, style };
+    const style: React.CSSProperties = {
+      backgroundColor: "#9ca3af",
+      color: "white",
+    };
+    return { className: baseClass, style };
   };
 
   const getResultTileStyle = (rowIndex: number): string => {
@@ -791,7 +982,7 @@ export function NumberleGame() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [board, currentRow, currentCol, gameStatus]);
+  }, [currentCol, gameState?.isGameComplete]);
 
   return (
     <div
@@ -813,6 +1004,48 @@ export function NumberleGame() {
         <div className="mb-4 text-center">
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative inline-block">
             <span className="block sm:inline">{warningMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Winning Message and Finalize Button */}
+      {isWonButNotFinalized() && (
+        <div className="mb-4 text-center">
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative inline-block mb-3">
+            <div className="text-lg font-bold mb-2"> You solved it! </div>
+            <div className="text-sm">
+              {hasDecryptedEquation()
+                ? "Equation is ready! Click to finalize your victory."
+                : 'Click "Finalize Game" to claim your victory and reveal the solution!'}
+            </div>
+          </div>
+
+          {!isFinalizingGame ? (
+            <button
+              onClick={
+                hasDecryptedEquation() ? decryptFinalizedEquation : finalizeGame
+              }
+              className="px-6 py-3 text-white rounded-lg font-semibold transition-colors duration-200 hover:opacity-90 shadow-lg"
+              style={{ backgroundColor: "#0AD9DC" }}
+            >
+              {hasDecryptedEquation() ? "Claim Victory" : "Finalize Game"}
+            </button>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-cyan-400"></div>
+              <div className="text-sm font-medium text-white">
+                {finalizeMessage || "Processing..."}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Finalize Message */}
+      {finalizeMessage && !isWonButNotFinalized() && (
+        <div className="mb-4 text-center">
+          <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative inline-block">
+            <span className="block sm:inline">{finalizeMessage}</span>
           </div>
         </div>
       )}
@@ -890,7 +1123,7 @@ export function NumberleGame() {
       <div className="space-y-2 relative z-10">
         <div className="flex gap-1 justify-center">
           {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((key) => {
-            const { className, style } = getKeyboardKeyStyle(key);
+            const { className, style } = getKeyboardKeyStyle();
             return (
               <button
                 key={key}
@@ -905,7 +1138,7 @@ export function NumberleGame() {
         </div>
         <div className="flex gap-1 justify-center">
           {["+", "-", "*", "/"].map((key) => {
-            const { className, style } = getKeyboardKeyStyle(key);
+            const { className, style } = getKeyboardKeyStyle();
             return (
               <button
                 key={key}
@@ -937,12 +1170,12 @@ export function NumberleGame() {
       </div>
 
       {/* Win/Loss Message - shown when game is over */}
-      {gameStatus !== "playing" && (
+      {gameState?.isGameComplete && (
         <div className="mt-6 text-center relative z-10">
-          {gameStatus === "won" ? (
+          {gameState?.hasWon ? (
             <div className="mb-4">
               <div className="text-2xl font-bold text-green-400 mb-2">
-                🎉 Congratulations! 🎉
+                Congratulations!
               </div>
               <div className="text-lg text-gray-300">
                 You found the correct equation!

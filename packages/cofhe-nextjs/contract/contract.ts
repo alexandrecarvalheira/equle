@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = "0xB294C698f6f886a420AFAD70159912548D64C0C3";
+export const CONTRACT_ADDRESS = "0xb1Caa6672a2450e9A98c7dC4Cb99f52baBb08104";
 
 export const CONTRACT_ABI = [
   {
@@ -241,6 +241,13 @@ export const CONTRACT_ABI = [
   },
   {
     inputs: [],
+    name: "DecryptfinalizedEquation",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "MAX_ATTEMPTS",
     outputs: [
       {
@@ -352,8 +359,14 @@ export const CONTRACT_ABI = [
   {
     inputs: [],
     name: "getDecryptedfinalizedEquation",
-    outputs: [],
-    stateMutability: "nonpayable",
+    outputs: [
+      {
+        internalType: "uint128",
+        name: "",
+        type: "uint128",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {

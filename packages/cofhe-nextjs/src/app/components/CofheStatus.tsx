@@ -16,34 +16,24 @@ export function CofheStatus() {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: "#1a3344" }}>
+      {isInitializing ? (
+        <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-cyan-400"></div>
+      ) : (
         <div
           className={`w-3 h-3 rounded-full ${
-            isInitializing
-              ? "bg-yellow-500 animate-pulse"
-              : isInitialized
-              ? "bg-green-500"
-              : "bg-red-500"
+            isInitialized ? "bg-cyan-400" : "bg-red-400"
           }`}
+          style={isInitialized ? { backgroundColor: "#0AD9DC" } : {}}
         />
-        <p>
-          Cofhe Status:{" "}
-          {isInitializing
-            ? "Initializing..."
-            : isInitialized
-            ? "Initialized"
-            : "Not Initialized"}
-        </p>
-      </div>
-      {/* {!isInitialized && !isInitializing && (
-        <button
-          onClick={() => initialize()}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-        >
-          Initialize Cofhe
-        </button>
-      )} */}
+      )}
+      <span className="text-sm font-medium text-white">
+        {isInitializing
+          ? "Initializing CoFHE..."
+          : isInitialized
+          ? "FHE Ready"
+          : "FHE Failed"}
+      </span>
     </div>
   );
 }
