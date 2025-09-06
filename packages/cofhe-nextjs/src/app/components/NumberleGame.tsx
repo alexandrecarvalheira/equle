@@ -27,7 +27,11 @@ interface Tile {
 const EQUATION_LENGTH = 5;
 const MAX_ATTEMPTS = 6;
 
-export function NumberleGame() {
+interface NumberleGameProps {
+  gameId: number | null;
+}
+
+export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
   // Contract and wallet integration
   const { address, isConnected } = useAccount();
   const { writeContract, data: hash } = useWriteContract();
@@ -225,17 +229,6 @@ export function NumberleGame() {
   };
 
   // Contract synchronization functions
-  const fetchCurrentGameId = async () => {
-    if (!equleContract) return null;
-
-    try {
-      const gameId = await equleContract.read.getCurrentGameId();
-      return Number(gameId);
-    } catch (error) {
-      console.error("Failed to fetch current game ID:", error);
-      return null;
-    }
-  };
 
   const fetchPlayerGameState = async (gameId: number) => {
     if (!equleContract || !address) return null;
@@ -256,15 +249,14 @@ export function NumberleGame() {
   };
 
   const syncGameStateFromContract = async () => {
-    if (!equleContract || !address || !isConnected) {
+    if (!equleContract || !address || !isConnected || propGameId === null) {
       console.log("Cannot sync game state - missing requirements");
       return;
     }
 
     try {
-      // Get current game ID
-      const gameId = await fetchCurrentGameId();
-      if (gameId === null) return;
+      // Use the gameId from props
+      const gameId = propGameId;
 
       // Get player's current state for this game
       const playerState = await fetchPlayerGameState(gameId);

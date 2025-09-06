@@ -7,34 +7,15 @@ export const dynamic = "force-dynamic";
 import { NumberleGame } from "./components/NumberleGame";
 import { NumberleGameSkeleton } from "./components/NumberleGameSkeleton";
 import { Footer } from "./components/Footer";
-import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { UserInfo } from "./components/Userinfo";
-import { contractStore } from "./store/contractStore";
 import { useCofheStore } from "./store/cofheStore";
+import { useCurrentGameId } from "./hooks/useCurrentGameId";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
-  const [currentGameId, setCurrentGameId] = useState<number | null>(null);
-
-  const equleContract = contractStore((state) => state.equle);
   const { isInitialized: isCofheInitialized } = useCofheStore();
-
-  useEffect(() => {
-    const fetchGameId = async () => {
-      if (equleContract) {
-        console.log("equleContract", equleContract);
-        try {
-          const gameId = await equleContract.read.getCurrentGameId();
-          setCurrentGameId(Number(gameId));
-        } catch (error) {
-          console.error("Failed to fetch current game ID:", error);
-        }
-      }
-    };
-
-    fetchGameId();
-  }, [equleContract]);
+  const { gameId: currentGameId } = useCurrentGameId();
 
   console.log("isConnected", address);
   return (
@@ -68,7 +49,7 @@ export default function Home() {
 
             <div className="mt-8">
               {isCofheInitialized && isConnected ? (
-                <NumberleGame />
+                <NumberleGame gameId={currentGameId} />
               ) : isConnected ? (
                 <div className="text-center py-12">
                   <div className="max-w-md mx-auto">
