@@ -3,19 +3,12 @@
 import { useState, useEffect } from "react";
 import {
   useAccount,
-  useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { contractStore } from "../store/contractStore";
 import { useGameStore } from "../store/gameStore";
-import {
-  equationToAllRotations,
-  analyzeXorResult,
-  extractOriginalEquation,
-} from "../../../utils";
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from "../../../contract/contract";
-import { cofhejs, Encryptable, FheTypes } from "cofhejs/web";
 import { useDecryptEquation } from "../hooks/useDecryptEquation";
+import { useGameSync } from "../hooks/useGameSync";
+import { useGuessSubmission } from "../hooks/useGuessSubmission";
 import { RulesModal } from "./RulesModal";
 
 type TileState = "empty" | "correct" | "present" | "absent";
@@ -35,10 +28,25 @@ export function NumberleGame({
 }) {
   // Contract and wallet integration
   const { address, isConnected } = useAccount();
-  const { writeContract, data: hash } = useWriteContract();
+  const { 
+    submitGuess: submitGuessToContract, 
+    isSubmitting, 
+    submissionError, 
+    hash,
+    clearError 
+  } = useGuessSubmission();
   const { isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash,
   });
+
+  // Game state management
+  const { gameState, isGameStateSynced } = useGameStore();
+
+  // Game synchronization hook
+  const { syncGameStateFromContract, processTransactionSuccess } = useGameSync(
+    address,
+    propGameId
+  );
 
   // Decryption hook for finalize game functionality
   const {
@@ -49,17 +57,6 @@ export function NumberleGame({
     hasDecryptedEquation,
     shouldShowFinalizeButton,
   } = useDecryptEquation(address);
-
-  const equleContract = contractStore((state) => state.equle);
-
-  // Game state management
-  const {
-    gameState,
-    setGameState,
-    updateCurrentAttempt,
-    addGuess,
-    setGameStateSynced,
-  } = useGameStore();
 
   const [pendingGuess, setPendingGuess] = useState<{
     equation: string;
@@ -80,326 +77,47 @@ export function NumberleGame({
     return /[+\-*/]/.test(expression);
   };
 
-  const isValidExpression = (expression: string): boolean => {
-    if (expression.length !== EQUATION_LENGTH) return false;
-    if (expression.includes("=")) return false;
-    if (!hasAtLeastOneOperation(expression)) return false;
-
-    // Check if first or last character is an operation
-    if (
-      /[+\-*/]/.test(expression[0]) ||
-      /[+\-*/]/.test(expression[expression.length - 1])
-    ) {
-      return false;
-    }
-
-    try {
-      // Basic validation - will be validated on contract
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   // Handle transaction confirmation
   useEffect(() => {
+    console.log("🔍 Transaction confirmation useEffect triggered:", {
+      isConfirmed,
+      pendingGuess: !!pendingGuess,
+      gameState: !!gameState,
+    });
+    
     if (isConfirmed && pendingGuess && gameState) {
+      console.log("✅ All conditions met, calling handleTransactionSuccess");
       handleTransactionSuccess();
+    } else {
+      console.log("⏸️ Conditions not met for transaction success processing");
     }
   }, [isConfirmed, pendingGuess, gameState]);
 
   const handleTransactionSuccess = async () => {
-    if (!pendingGuess || !equleContract || !address || !gameState) {
-      console.log(
-        "Cannot process transaction success - missing requirements:",
-        {
-          pendingGuess: !!pendingGuess,
-          equleContract: !!equleContract,
-          address: !!address,
-          gameState: !!gameState,
-        }
-      );
+    console.log("🔥 handleTransactionSuccess called", {
+      pendingGuess: !!pendingGuess,
+      gameState: !!gameState,
+    });
+    
+    if (!pendingGuess) {
+      console.log("❌ No pending guess found");
       return;
     }
-
-    try {
-      console.log("Transaction confirmed, processing feedback...");
-
-      // Fetch encrypted data from the contract
-      const attemptIndex = gameState.currentAttempt;
-      const [equationGuess, resultGuess, equationXor, encryptedResultFeedback] =
-        await (equleContract as any).read.getPlayerAttempt([
-          gameState.gameId,
-          address,
-          attemptIndex,
-        ]);
-
-      console.log("Encrypted feedback received:", {
-        equationGuess: equationGuess.toString(),
-        resultGuess: resultGuess.toString(),
-        equationXor: equationXor.toString(),
-        resultFeedback: encryptedResultFeedback.toString(),
-      });
-
-      // Unseal all encrypted values
-      const [
-        unsealedEquation,
-        unsealedResult,
-        unsealedXor,
-        unsealedResultFeedback,
-      ] = await Promise.all([
-        unsealValue(equationGuess as bigint, FheTypes.Uint128),
-        unsealValue(resultGuess as bigint, FheTypes.Uint16),
-        unsealValue(equationXor as bigint, FheTypes.Uint128),
-        unsealValue(encryptedResultFeedback as bigint, FheTypes.Uint8),
-      ]);
-
-      console.log("Unsealed values:", {
-        equation: unsealedEquation?.data?.toString(),
-        result: unsealedResult?.data?.toString(),
-        xor: unsealedXor?.data?.toString(),
-        resultFeedback: unsealedResultFeedback?.data?.toString(),
-      });
-
-      // Process the unsealed data
-      const reconstructedEquation = extractOriginalEquation(
-        unsealedEquation?.data as bigint
-      );
-      const reconstructedResult = unsealedResult?.data?.toString() || "0";
-
-      // Process XOR feedback into color feedback
-      const xorAnalysis = analyzeXorResult(unsealedXor?.data as bigint);
-      const colorFeedback: TileState[] = [];
-
-      for (let i = 0; i < 5; i++) {
-        if (xorAnalysis.green[i]) {
-          colorFeedback.push("correct");
-        } else if (xorAnalysis.yellow[i]) {
-          colorFeedback.push("present");
-        } else {
-          colorFeedback.push("absent");
-        }
-      }
-
-      // Process result feedback from unsealed data
-      const resultFeedbackValue = Number(unsealedResultFeedback?.data || 0);
-      // Convert numeric feedback: 0 = equal, 1 = less than, 2 = greater than
-      let processedResultFeedback: "equal" | "less" | "greater" = "equal";
-      if (resultFeedbackValue === 1) processedResultFeedback = "less";
-      else if (resultFeedbackValue === 2) processedResultFeedback = "greater";
-
-      // Create the guess data with real processed feedback
-      const guessData = {
-        equation: reconstructedEquation,
-        result: reconstructedResult,
-        feedback: colorFeedback,
-        resultFeedback: processedResultFeedback,
-      };
-
-      console.log("Processed guess data:", guessData);
-
-      // Add guess to gameStore (this will persist to localStorage)
-      addGuess(guessData);
-
-      // Update current attempt count
-      updateCurrentAttempt(gameState.currentAttempt + 1);
-
-      // Keep gameStore synced
-      setGameStateSynced(true);
-
-      console.log(
-        "Guess successfully persisted to gameStore with real feedback:",
-        guessData
-      );
-
+    
+    console.log("📞 Calling processTransactionSuccess...");
+    const success = await processTransactionSuccess(pendingGuess, gameState);
+    
+    console.log("✨ processTransactionSuccess result:", success);
+    
+    if (success) {
+      console.log("🎉 Transaction success! Resetting UI state");
       // Reset input state for next guess
       setCurrentInput("");
       setCurrentCol(0);
-
       // Clear pending guess
       setPendingGuess(null);
-    } catch (error) {
-      console.error("Error processing transaction success:", error);
-      // Clear pending guess even on error to prevent stuck state
-      setPendingGuess(null);
-    }
-  };
-
-  // Contract synchronization functions
-
-  const fetchPlayerGameState = async (gameId: number) => {
-    if (!equleContract || !address) return null;
-
-    try {
-      const [currentAttempt, hasWon] = await (
-        equleContract as any
-      ).read.getPlayerGameState([gameId, address]);
-
-      return {
-        currentAttempt: Number(currentAttempt),
-        hasWon: Boolean(hasWon),
-      };
-    } catch (error) {
-      console.error("Failed to fetch player game state:", error);
-      return null;
-    }
-  };
-
-  const syncGameStateFromContract = async () => {
-    if (!equleContract || !address || !isConnected || propGameId === null) {
-      console.log("Cannot sync game state - missing requirements");
-      return;
-    }
-
-    try {
-      // Use the gameId from props
-      const gameId = propGameId;
-
-      // Get player's current state for this game
-      const playerState = await fetchPlayerGameState(gameId);
-      if (!playerState) return;
-
-      // Check if we need to sync with localStorage
-      const needsSync =
-        !gameState ||
-        gameState.gameId !== gameId ||
-        gameState.currentAttempt !== playerState.currentAttempt;
-
-      if (needsSync) {
-        console.log("Syncing game state from contract...", {
-          contractGameId: gameId,
-          contractAttempts: playerState.currentAttempt,
-          localGameId: gameState?.gameId,
-          localAttempts: gameState?.currentAttempt,
-        });
-
-        // Rebuild game state from contract
-        await rebuildGameStateFromContract(gameId, playerState);
-      } else {
-        // Local state is current, just mark as synced
-        console.log("Local game state is current, marking as synced");
-        setGameStateSynced(true);
-      }
-    } catch (error) {
-      console.error("Failed to sync game state:", error);
-    }
-  };
-
-  const rebuildGameStateFromContract = async (
-    gameId: number,
-    playerState: { currentAttempt: number; hasWon: boolean }
-  ) => {
-    if (!equleContract || !address) {
-      console.log("Missing requirements for rebuilding game state:", {
-        equleContract: !!equleContract,
-        address: !!address,
-      });
-      return;
-    }
-
-    try {
-      const guesses = [];
-
-      // Fetch all previous attempts from the contract
-      for (
-        let attemptIndex = 0;
-        attemptIndex < playerState.currentAttempt;
-        attemptIndex++
-      ) {
-        try {
-          const [
-            equationGuess,
-            resultGuess,
-            equationXor,
-            encryptedResultFeedback,
-          ] = await (equleContract as any).read.getPlayerAttempt([
-            gameId,
-            address,
-            attemptIndex,
-          ]);
-
-          console.log(`Fetched attempt ${attemptIndex} - encrypted:`, {
-            equationGuess: equationGuess.toString(),
-            resultGuess: resultGuess.toString(),
-            equationXor: equationXor.toString(),
-            resultFeedback: encryptedResultFeedback.toString(),
-          });
-
-          const [
-            unsealedEquation,
-            unsealedResult,
-            unsealedXor,
-            unsealedResultFeedback,
-          ] = await Promise.all([
-            unsealValue(equationGuess as bigint, FheTypes.Uint128),
-            unsealValue(resultGuess as bigint, FheTypes.Uint16),
-            unsealValue(equationXor as bigint, FheTypes.Uint128),
-            unsealValue(encryptedResultFeedback as bigint, FheTypes.Uint8),
-          ]);
-
-          console.log("unsealedEquation", unsealedEquation?.data);
-          console.log("unsealedResult", unsealedResult?.data);
-          console.log("unsealedXor", unsealedXor?.data);
-          console.log("unsealedResultFeedback", unsealedResultFeedback?.data);
-
-          // Process the unsealed data using utility functions
-          const reconstructedEquation = extractOriginalEquation(
-            unsealedEquation?.data as bigint
-          );
-          const reconstructedResult = unsealedResult?.data?.toString() || "0";
-
-          // Process XOR feedback into color feedback
-          const xorAnalysis = analyzeXorResult(unsealedXor?.data as bigint);
-          const colorFeedback: TileState[] = [];
-
-          for (let i = 0; i < 5; i++) {
-            if (xorAnalysis.green[i]) {
-              colorFeedback.push("correct");
-            } else if (xorAnalysis.yellow[i]) {
-              colorFeedback.push("present");
-            } else {
-              colorFeedback.push("absent");
-            }
-          }
-
-          // Process result feedback from unsealed data
-          const resultFeedbackValue = Number(unsealedResultFeedback?.data || 0);
-          let processedResultFeedback: "equal" | "less" | "greater" = "equal";
-          if (resultFeedbackValue === 1) processedResultFeedback = "less";
-          else if (resultFeedbackValue === 2)
-            processedResultFeedback = "greater";
-
-          const guess = {
-            equation: reconstructedEquation,
-            result: reconstructedResult,
-            feedback: colorFeedback,
-            resultFeedback: processedResultFeedback,
-          };
-
-          guesses.push(guess);
-
-          console.log(`Processed attempt ${attemptIndex}:`, guess);
-        } catch (error) {
-          console.error(`Failed to fetch attempt ${attemptIndex}:`, error);
-          // Continue with other attempts even if one fails
-        }
-      }
-
-      const newGameState = {
-        gameId,
-        currentAttempt: playerState.currentAttempt,
-        guesses,
-        hasWon: playerState.hasWon,
-        isGameComplete: playerState.hasWon || playerState.currentAttempt >= 6,
-        maxAttempts: 6,
-      };
-
-      setGameState(newGameState);
-      setGameStateSynced(true);
-
-      console.log("Game state rebuilt from contract:", newGameState);
-    } catch (error) {
-      console.error("Failed to rebuild game state from contract:", error);
+    } else {
+      console.log("❌ Transaction success processing failed");
     }
   };
 
@@ -423,55 +141,9 @@ export function NumberleGame({
     return /^[0-9+\-*/]$/.test(key);
   };
 
-  // Calculate the result using left-to-right evaluation (same as contract logic)
-  const calculateResult = (expression: string): number => {
-    let result = 0;
-    let currentNumber = 0;
-    let operator = "+";
+  // Use calculateResult from the hook for consistency
+  const { calculateResult } = useGuessSubmission();
 
-    for (let i = 0; i < expression.length; i++) {
-      const char = expression[i];
-
-      if (!isNaN(Number(char))) {
-        currentNumber = currentNumber * 10 + Number(char);
-      }
-
-      if (["+", "-", "*", "/"].includes(char) || i === expression.length - 1) {
-        switch (operator) {
-          case "+":
-            result = result + currentNumber;
-            break;
-          case "-":
-            result = result - currentNumber;
-            break;
-          case "*":
-            result = result * currentNumber;
-            break;
-          case "/":
-            result = result / currentNumber;
-            break;
-        }
-        operator = char;
-        currentNumber = 0;
-      }
-    }
-    return result;
-  };
-
-  // CoFHE unsealing utility function
-  const unsealValue = async (encryptedValue: bigint, fheType: FheTypes) => {
-    if (!address) throw new Error("Address not available");
-
-    const permit = await cofhejs.getPermit();
-    const unsealedValue = await cofhejs.unseal(
-      encryptedValue,
-      fheType,
-      address,
-      permit.data?.getHash()
-    );
-    console.log("unsealedValue", unsealedValue);
-    return unsealedValue;
-  };
 
   // Create display board from gameState + current input
   const getDisplayBoard = (): Tile[][] => {
@@ -521,72 +193,53 @@ export function NumberleGame({
 
   const submitGuess = async () => {
     if (currentCol !== EQUATION_LENGTH) return;
-    if (!equleContract || !address || !isConnected) return;
+    if (!address || !isConnected) return;
     if (gameState?.isGameComplete || shouldShowFinalizeButton) return;
+    if (isSubmitting) return;
 
     const currentGuess = currentInput;
 
-    if (!isValidExpression(currentGuess)) {
-      if (!hasAtLeastOneOperation(currentGuess)) {
-        setWarningMessage("Please include at least one operation (+, -, *, /)");
-      } else {
-        setWarningMessage("Please enter a valid mathematical expression");
-      }
+    // Basic validation - detailed validation is in the hook
+    if (!hasAtLeastOneOperation(currentGuess)) {
+      setWarningMessage("Please include at least one operation (+, -, *, /)");
       setTimeout(() => setWarningMessage(""), 3000);
       return;
     }
 
+    // Clear any previous errors
+    clearError();
     setWarningMessage("");
 
     const playerResult = calculateResult(currentGuess);
 
     // Store pending guess for transaction success handling
-    setPendingGuess({
+    const pendingGuessData = {
       equation: currentGuess,
       result: playerResult,
       rowIndex: gameState?.currentAttempt || 0,
-    });
+    };
+    setPendingGuess(pendingGuessData);
 
-    try {
-      if (!cofhejs) {
-        throw new Error("CoFHE not initialized");
+    // Submit using the hook with success and error callbacks
+    const success = await submitGuessToContract(
+      currentGuess,
+      address,
+      (data) => {
+        console.log("Guess submitted successfully:", data);
+        // The hook will trigger writeContract, and transaction success will be handled in useEffect
+      },
+      (error) => {
+        console.error("Failed to submit guess:", error);
+        setWarningMessage(error);
+        setTimeout(() => setWarningMessage(""), 3000);
+        setPendingGuess(null); // Clear pending guess on error
       }
+    );
 
-      console.log("Submitting guess to contract:", currentGuess);
-
-      // Convert equation to bit representation using utility function
-      const playerEquationBits = equationToAllRotations(currentGuess);
-
-      // Encrypt the guess and result using CoFHE.js
-      const encryptedGuess = await cofhejs.encrypt([
-        Encryptable.uint128(playerEquationBits),
-      ] as const);
-
-      const encryptedPlayerResult = await cofhejs.encrypt([
-        Encryptable.uint16(BigInt(playerResult)),
-      ] as const);
-
-      console.log("encryptedGuess", encryptedGuess.data?.[0]);
-      console.log("encryptedPlayerResult", encryptedPlayerResult.data?.[0]);
-
-      // Submit to contract
-      writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: "guess",
-        args: [encryptedGuess.data?.[0], encryptedPlayerResult.data?.[0]],
-      });
-
-      console.log("Guess transaction initiated:", {
-        equation: currentGuess,
-        result: playerResult,
-      });
-
-      // Note: Transaction is async, game state will sync when it's mined
-    } catch (error) {
-      console.error("Error submitting guess:", error);
-      setWarningMessage("Error submitting guess. Please try again.");
+    if (!success && submissionError) {
+      setWarningMessage(submissionError);
       setTimeout(() => setWarningMessage(""), 3000);
+      setPendingGuess(null);
     }
   };
 
@@ -708,12 +361,12 @@ export function NumberleGame({
     handleKeyPress(key);
   };
 
-  // Contract sync effect - runs when contract or wallet state changes
+  // Contract sync effect - runs when wallet state changes
   useEffect(() => {
-    if (equleContract && address && isConnected) {
+    if (address && isConnected && propGameId !== null && !isGameStateSynced) {
       syncGameStateFromContract();
     }
-  }, [equleContract, address, isConnected]);
+  }, [address, isConnected, propGameId, isGameStateSynced, syncGameStateFromContract]);
 
   // Keyboard handler effect
   useEffect(() => {

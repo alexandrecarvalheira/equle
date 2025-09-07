@@ -1,84 +1,20 @@
 import { CofheStatus } from "./CofheStatus";
-import { useAccount, usePublicClient, useConnect, useDisconnect } from "wagmi";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { useState, useEffect } from "react";
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from "../../../contract/contract";
-import { contractStore } from "../store/contractStore";
-import { useCofheStore } from "../store/cofheStore";
-import { getContract, createWalletClient, custom } from "viem";
 
 export function UserInfo() {
-  const { address, chain, isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
-  const publicClient = usePublicClient();
   const [isMounted, setIsMounted] = useState(false);
 
-  // Contract store
-  const setEquleContract = contractStore((state) => state.setEqule);
-  const equleContract = contractStore((state) => state.equle);
 
-  // CoFHE store
-  const isInitialized = useCofheStore((state) => state.isInitialized);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Initialize contract when wallet is connected and CoFHE is initialized
-  useEffect(() => {
-    const initializeContract = async () => {
-      if (isConnected && publicClient && isInitialized && !equleContract) {
-        try {
-          console.log("Initializing Equle contract...");
 
-          const walletClient = createWalletClient({
-            account: address,
-            chain,
-            transport: custom((window as any).ethereum),
-          });
-
-          const contract = getContract({
-            address: CONTRACT_ADDRESS as `0x${string}`,
-            abi: CONTRACT_ABI,
-            client: {
-              public: publicClient,
-              wallet: walletClient,
-            },
-          });
-          console.log("contract", contract);
-          setEquleContract(contract as any);
-          console.log("Equle contract initialized:", contract);
-        } catch (error) {
-          console.error("Failed to initialize Equle contract:", error);
-        }
-      }
-    };
-
-    initializeContract();
-  }, [
-    isConnected,
-    address,
-    chain,
-    publicClient,
-    isInitialized,
-    equleContract,
-    setEquleContract,
-  ]);
-
-  // Create read-only contract when wallet disconnects
-  useEffect(() => {
-    if (!isConnected && publicClient) {
-      // Create a read-only contract with just the public client
-      const readOnlyContract = getContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        client: publicClient,
-      });
-
-      setEquleContract(readOnlyContract as any);
-      console.log("Created read-only Equle contract");
-    }
-  }, [isConnected, publicClient, setEquleContract]);
 
   // If no context user and not connected, only show Wallet after mounting
   if (!isMounted) {
