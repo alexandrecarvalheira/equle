@@ -42,7 +42,7 @@ export default function Home() {
             {currentGameId !== null && (
               <div className="text-center mb-4">
                 <p className="text-lg font-semibold text-white">
-                  Day <span style={{ color: "#0AD9DC" }}>{currentGameId}</span>
+                  Game <span style={{ color: "#0AD9DC" }}>{currentGameId}</span>
                 </p>
               </div>
             )}

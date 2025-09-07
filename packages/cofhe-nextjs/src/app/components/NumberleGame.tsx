@@ -5,7 +5,6 @@ import {
   useAccount,
   useWriteContract,
   useWaitForTransactionReceipt,
-  useReadContract,
 } from "wagmi";
 import { contractStore } from "../store/contractStore";
 import { useGameStore } from "../store/gameStore";
@@ -16,6 +15,8 @@ import {
 } from "../../../utils";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "../../../contract/contract";
 import { cofhejs, Encryptable, FheTypes } from "cofhejs/web";
+import { useDecryptEquation } from "../hooks/useDecryptEquation";
+import { RulesModal } from "./RulesModal";
 
 type TileState = "empty" | "correct" | "present" | "absent";
 
@@ -27,11 +28,11 @@ interface Tile {
 const EQUATION_LENGTH = 5;
 const MAX_ATTEMPTS = 6;
 
-interface NumberleGameProps {
+export function NumberleGame({
+  gameId: propGameId,
+}: {
   gameId: number | null;
-}
-
-export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
+}) {
   // Contract and wallet integration
   const { address, isConnected } = useAccount();
   const { writeContract, data: hash } = useWriteContract();
@@ -39,18 +40,16 @@ export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
     hash,
   });
 
-  // Read contract for polling decrypted finalized equation
+  // Decryption hook for finalize game functionality
   const {
-    data: decryptedEquation,
-    refetch: refetchDecryptedEquation,
-    error: decryptedEquationError,
-  } = useReadContract({
-    address: CONTRACT_ADDRESS as `0x${string}`,
-    abi: CONTRACT_ABI,
-    functionName: "getDecryptedfinalizedEquation",
-    args: [], // No arguments
-    account: address,
-  });
+    isFinalizingGame,
+    finalizeMessage,
+    finalizeGame,
+    decryptFinalizedEquation,
+    hasDecryptedEquation,
+    shouldShowFinalizeButton,
+  } = useDecryptEquation(address);
+
   const equleContract = contractStore((state) => state.equle);
 
   // Game state management
@@ -76,8 +75,6 @@ export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
     null
   );
   const [warningMessage, setWarningMessage] = useState<string>("");
-  const [isFinalizingGame, setIsFinalizingGame] = useState(false);
-  const [finalizeMessage, setFinalizeMessage] = useState<string>("");
 
   const hasAtLeastOneOperation = (expression: string): boolean => {
     return /[+\-*/]/.test(expression);
@@ -407,7 +404,7 @@ export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
   };
 
   const handleKeyPress = (key: string) => {
-    if (gameState?.isGameComplete || isWonButNotFinalized()) return;
+    if (gameState?.isGameComplete || shouldShowFinalizeButton) return;
 
     if (key === "Enter") {
       submitGuess();
@@ -424,27 +421,6 @@ export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
 
   const isValidInput = (key: string): boolean => {
     return /^[0-9+\-*/]$/.test(key);
-  };
-
-  // Check if the last guess is all correct (all green)
-  const isLastGuessAllCorrect = (): boolean => {
-    if (!gameState?.guesses || gameState.guesses.length === 0) return false;
-    const lastGuess = gameState.guesses[gameState.guesses.length - 1];
-    return lastGuess.feedback.every((feedback) => feedback === "correct");
-  };
-
-  // Check if game is won but not finalized yet
-  const isWonButNotFinalized = (): boolean => {
-    return isLastGuessAllCorrect() && !gameState?.hasWon;
-  };
-
-  // Check if decrypted equation is already available
-  const hasDecryptedEquation = (): boolean => {
-    return !!(
-      decryptedEquation &&
-      decryptedEquation !== "0x" &&
-      decryptedEquation !== "0x0000000000000000000000000000000000000000"
-    );
   };
 
   // Calculate the result using left-to-right evaluation (same as contract logic)
@@ -497,231 +473,6 @@ export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
     return unsealedValue;
   };
 
-  // Call DecryptFinalizedEquation when equation is already decrypted
-  const decryptFinalizedEquation = async () => {
-    if (!equleContract || !address || !isConnected) {
-      setFinalizeMessage("Contract not available");
-      return;
-    }
-
-    setIsFinalizingGame(true);
-    setFinalizeMessage("Finalizing win status...");
-
-    try {
-      // Call DecryptFinalizedEquation to update hasWon status
-      writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: "DecryptfinalizedEquation",
-        args: [],
-      });
-
-      console.log("DecryptFinalizedEquation transaction initiated");
-
-      // After transaction confirms, check player status will be handled by useEffect
-    } catch (error) {
-      console.error("Error calling DecryptFinalizedEquation:", error);
-      setFinalizeMessage("Error finalizing game. Please try again.");
-      setTimeout(() => setFinalizeMessage(""), 5000);
-      setIsFinalizingGame(false);
-    }
-  };
-
-  // Finalize game when player has won
-  const finalizeGame = async () => {
-    if (!equleContract || !address || !isConnected) {
-      setFinalizeMessage("Contract not available");
-      return;
-    }
-
-    setIsFinalizingGame(true);
-    setFinalizeMessage("Finalizing game...");
-
-    try {
-      // Call finalizeGame on the contract
-      writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: "finalizeGame",
-        args: [],
-      });
-
-      console.log("Finalize game transaction initiated");
-
-      // Wait for transaction confirmation, then start polling for decrypted equation
-    } catch (error) {
-      console.error("Error finalizing game:", error);
-      setFinalizeMessage("Error finalizing game. Please try again.");
-      setTimeout(() => setFinalizeMessage(""), 5000);
-      setIsFinalizingGame(false);
-    }
-  };
-
-  // Check if player has won on-chain and update game state
-  const checkPlayerWinStatus = async (): Promise<void> => {
-    if (!equleContract || !address || !gameState) return;
-
-    try {
-      const [currentAttempt, hasWon] = await (
-        equleContract as any
-      ).read.getPlayerGameState([gameState.gameId, address]);
-
-      if (hasWon && !gameState.hasWon) {
-        console.log("Player has won on-chain, updating game state");
-
-        // Update the game state to reflect the win
-        const updatedGameState = {
-          ...gameState,
-          hasWon: true,
-          isGameComplete: true,
-        };
-
-        setGameState(updatedGameState);
-        setGameStateSynced(true);
-
-        // Show success message and finish finalization
-        setFinalizeMessage("🎉 Game finalized successfully! 🎉");
-        setTimeout(() => {
-          setFinalizeMessage("");
-          setIsFinalizingGame(false);
-        }, 3000);
-      }
-    } catch (error) {
-      console.error("Error checking player win status:", error);
-    }
-  };
-
-  // Effect to handle finalize game transaction confirmation and refetch decrypted equation
-  useEffect(() => {
-    if (isConfirmed && isFinalizingGame) {
-      console.log(
-        "Finalize game transaction confirmed, starting to poll for decrypted equation"
-      );
-      setFinalizeMessage("Waiting for equation decryption...");
-
-      // Start polling for decrypted equation
-      const pollDecryptedEquation = async () => {
-        try {
-          console.log("Attempting to refetch decrypted equation...");
-          const result = await refetchDecryptedEquation();
-          console.log("Refetch result:", result);
-
-          if (result.error) {
-            console.log(
-              "Function reverted (equation not ready), will retry automatically"
-            );
-            // The query will automatically retry due to retry: true
-          }
-        } catch (error) {
-          console.error("Error during refetch:", error);
-        }
-      };
-
-      pollDecryptedEquation();
-    }
-  }, [isConfirmed, isFinalizingGame, refetchDecryptedEquation]);
-
-  // Effect to handle when decrypted equation is received - ONLY when player has won
-  useEffect(() => {
-    // Only process decrypted equation if player has actually won
-    if (!isWonButNotFinalized() && !isFinalizingGame) {
-      return;
-    }
-
-    console.log("Decrypted equation state changed:", {
-      decryptedEquation,
-      error: decryptedEquationError,
-      isWonButNotFinalized: isWonButNotFinalized(),
-      isFinalizingGame,
-    });
-
-    if (
-      decryptedEquation &&
-      decryptedEquation !== "0x" &&
-      decryptedEquation !== "0x0000000000000000000000000000000000000000"
-    ) {
-      console.log("✅ Successfully got decrypted equation:", decryptedEquation);
-      setFinalizeMessage("Equation decrypted! Finalizing win status...");
-
-      // Call DecryptFinalizedEquation to update hasWon status
-      writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: "DecryptfinalizedEquation",
-        args: [],
-      });
-    } else if (
-      decryptedEquationError &&
-      (isWonButNotFinalized() || isFinalizingGame)
-    ) {
-      console.log("decryptedEquationError", decryptedEquationError);
-      console.log("❌ Equation not ready yet (function reverted), retrying...");
-      setFinalizeMessage("Waiting for equation decryption... (retrying)");
-    }
-  }, [
-    decryptedEquation,
-    decryptedEquationError,
-    isWonButNotFinalized(),
-    isFinalizingGame,
-  ]);
-
-  // Effect to refetch player status after DecryptFinalizedEquation call
-  useEffect(() => {
-    if (isConfirmed && finalizeMessage.includes("Finalizing win status")) {
-      console.log("DecryptFinalizedEquation confirmed, checking player status");
-      setFinalizeMessage("Updating win status...");
-      // Check player status after a short delay
-      setTimeout(() => {
-        checkPlayerWinStatus();
-      }, 2000);
-    }
-  }, [isConfirmed, finalizeMessage]);
-
-  // Effect to check for decrypted equation when player first wins
-  useEffect(() => {
-    if (isWonButNotFinalized()) {
-      console.log(
-        "Player won! Checking if decrypted equation is already available..."
-      );
-      refetchDecryptedEquation();
-    }
-  }, [isWonButNotFinalized(), refetchDecryptedEquation]);
-
-  // Effect to check for decrypted equation on component mount/game state load - ONLY when player has won
-  useEffect(() => {
-    const checkDecryptedEquationOnLoad = async () => {
-      // Only check if player has actually won but game is not finalized
-      if (gameState && isWonButNotFinalized() && !decryptedEquation) {
-        console.log(
-          "Game state loaded, player won but not finalized - checking for decrypted equation..."
-        );
-        console.log(
-          "Current decryptedEquation before refetch:",
-          decryptedEquation
-        );
-
-        try {
-          const result = await refetchDecryptedEquation();
-          console.log("Refetch result:", result);
-          console.log("decryptedEquation after refetch:", result.data);
-        } catch (error) {
-          console.log("Refetch failed (equation not ready):", error);
-        }
-      }
-    };
-
-    checkDecryptedEquationOnLoad();
-  }, [gameState, refetchDecryptedEquation, decryptedEquation]);
-
-  // Effect to track decryptedEquation value changes
-  useEffect(() => {
-    console.log("🔍 decryptedEquation value changed:", {
-      value: decryptedEquation,
-      hasDecryptedEquation: hasDecryptedEquation(),
-      isWonButNotFinalized: isWonButNotFinalized(),
-    });
-  }, [decryptedEquation]);
-
   // Create display board from gameState + current input
   const getDisplayBoard = (): Tile[][] => {
     const displayBoard: Tile[][] = [];
@@ -771,7 +522,7 @@ export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
   const submitGuess = async () => {
     if (currentCol !== EQUATION_LENGTH) return;
     if (!equleContract || !address || !isConnected) return;
-    if (gameState?.isGameComplete || isWonButNotFinalized()) return;
+    if (gameState?.isGameComplete || shouldShowFinalizeButton) return;
 
     const currentGuess = currentInput;
 
@@ -902,8 +653,8 @@ export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
 
       // Get arrow based on result feedback
       let arrow = "";
-      if (guess.resultFeedback === "less") arrow = "↓";
-      else if (guess.resultFeedback === "greater") arrow = "↑";
+      if (guess.resultFeedback === "less") arrow = "↑";
+      else if (guess.resultFeedback === "greater") arrow = "↓";
       else if (guess.resultFeedback === "equal") arrow = "✓";
 
       return { value, arrow };
@@ -1001,7 +752,7 @@ export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
       )}
 
       {/* Winning Message and Finalize Button */}
-      {isWonButNotFinalized() && (
+      {shouldShowFinalizeButton && (
         <div className="mb-4 text-center">
           <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative inline-block mb-3">
             <div className="text-lg font-bold mb-2"> You solved it! </div>
@@ -1034,7 +785,7 @@ export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
       )}
 
       {/* Finalize Message */}
-      {finalizeMessage && !isWonButNotFinalized() && (
+      {finalizeMessage && !shouldShowFinalizeButton && (
         <div className="mb-4 text-center">
           <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative inline-block">
             <span className="block sm:inline">{finalizeMessage}</span>
@@ -1187,110 +938,7 @@ export function NumberleGame({ gameId: propGameId }: NumberleGameProps) {
       )}
 
       {/* Rules Modal */}
-      {showRules && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div
-            className="rounded-lg max-w-md w-full max-h-[90vh] flex flex-col"
-            style={{ backgroundColor: "#122531" }}
-          >
-            <div className="p-6 pb-0">
-              <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
-                How to Play
-              </h3>
-            </div>
-            <div className="px-6 overflow-y-auto flex-1">
-              <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
-                <p>
-                  • Find the exact 5-character mathematical expression in 6
-                  tries
-                </p>
-                <p>• You must match the exact equation, not just the result</p>
-                <p>• Each guess must be valid (no = sign, use +, -, *, /)</p>
-                <p>
-                  • <strong>Important:</strong> Math is evaluated left-to-right
-                  (6+4*2 = 20, not 14)
-                </p>
-                <p>• Two types of clues help you:</p>
-
-                <div className="ml-4">
-                  <p className="font-semibold mb-1">
-                    1. Tile Colors (Position Clues):
-                  </p>
-                  <div className="space-y-1 ml-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-green-500 rounded"></div>
-                      <span>Green: Right digit/operator in right position</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-yellow-500 rounded"></div>
-                      <span>
-                        Yellow: Right digit/operator in wrong position
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-gray-500 rounded"></div>
-                      <span>Gray: Not in the target equation</span>
-                    </div>
-                  </div>
-
-                  <p className="font-semibold mt-3 mb-1">
-                    2. Result Feedback (Math Clues):
-                  </p>
-                  <div className="ml-2 space-y-2">
-                    <p>• After each guess, check the result tile for hints:</p>
-                    <div className="space-y-1 ml-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-green-500 rounded flex items-center justify-center text-white text-xs font-bold">
-                          ✓
-                        </div>
-                        <span>Green: Your result matches exactly!</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-6 h-6 border rounded flex items-center justify-center text-white text-xs font-bold"
-                          style={{
-                            backgroundColor: "#0AD9DC",
-                            borderColor: "#0AD9DC",
-                          }}
-                        >
-                          ↑
-                        </div>
-                        <span>
-                          Blue with ↑: Your result is too low (aim higher)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-red-100 border border-red-300 rounded flex items-center justify-center text-red-800 text-xs font-bold">
-                          ↓
-                        </div>
-                        <span>
-                          Red with ↓: Your result is too high (aim lower)
-                        </span>
-                      </div>
-                    </div>
-                    <p className="mt-2">
-                      <strong>Example:</strong> If target result is 15 and you
-                      guess "2*3+4" = 10 (left-to-right: 2*3=6, then 6+4=10),
-                      you'll see a blue tile with ↑ (too low)
-                    </p>
-                  </div>
-                </div>
-
-                <p>• Win by finding the exact equation structure!</p>
-              </div>
-            </div>
-            <div className="p-6 pt-4">
-              <button
-                onClick={() => setShowRules(false)}
-                className="w-full py-2 text-white rounded font-semibold transition-colors duration-200 hover:opacity-80"
-                style={{ backgroundColor: "#0AD9DC" }}
-              >
-                Got it!
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
     </div>
   );
 }

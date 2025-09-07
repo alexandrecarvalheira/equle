@@ -39,7 +39,7 @@ contract Equle is Ownable {
     //STATE VARIABLES
 
     uint256 public immutable startTimestamp;
-    uint256 public constant DAY = 1 days;
+    uint256 public constant HOUR = 1 hours;
     uint256 public constant MAX_ATTEMPTS = 6;
     euint16 public ZERO;
     euint16 public ONE;
@@ -320,7 +320,7 @@ contract Equle is Ownable {
     }
 
     function getCurrentGameId() public view returns (uint256) {
-        return ((block.timestamp - startTimestamp) / DAY) + 1;
+        return ((block.timestamp - startTimestamp) / HOUR) + 1;
     }
     
 }
