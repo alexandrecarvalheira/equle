@@ -7,6 +7,7 @@ import { useDecryptEquation } from "../hooks/useDecryptEquation";
 import { useGameSync } from "../hooks/useGameSync";
 import { useGuessSubmission } from "../hooks/useGuessSubmission";
 import { RulesModal } from "./RulesModal";
+import { VirtualKeyboard, KeyFeedback } from "./VirtualKeyboard";
 
 type TileState = "empty" | "correct" | "present" | "absent";
 
@@ -267,14 +268,39 @@ export function NumberleGame({
     }
   };
 
-  const getKeyboardKeyStyle = () => {
-    const baseClass =
-      "w-8 h-10 rounded text-sm font-semibold transition-colors duration-200";
-    const style: React.CSSProperties = {
-      backgroundColor: "#9ca3af",
-      color: "white",
-    };
-    return { className: baseClass, style };
+  const getKeyboardFeedback = (): Record<string, KeyFeedback> => {
+    const feedback: Record<string, KeyFeedback> = {};
+    
+    // If no game state or guesses, return empty feedback
+    if (!gameState?.guesses) {
+      return feedback;
+    }
+
+    // Analyze all guesses to determine the best feedback for each character
+    gameState.guesses.forEach((guess) => {
+      const equation = guess.equation;
+      const guessFeedback = guess.feedback;
+
+      for (let i = 0; i < equation.length && i < guessFeedback.length; i++) {
+        const char = equation[i];
+        const charFeedback = guessFeedback[i] as KeyFeedback;
+
+        // Skip if current feedback is empty or character is empty
+        if (!char || charFeedback === "empty") continue;
+
+        // Determine the best feedback (priority: correct > present > absent > empty)
+        const currentFeedback = feedback[char] || "empty";
+        if (
+          charFeedback === "correct" ||
+          (charFeedback === "present" && currentFeedback !== "correct") ||
+          (charFeedback === "absent" && currentFeedback === "empty")
+        ) {
+          feedback[char] = charFeedback;
+        }
+      }
+    });
+
+    return feedback;
   };
 
   const getResultTileStyle = (rowIndex: number): string => {
@@ -368,9 +394,6 @@ export function NumberleGame({
     return "Result will appear here";
   };
 
-  const handleVirtualKeyboard = (key: string) => {
-    handleKeyPress(key);
-  };
 
   // Keyboard handler effect
   useEffect(() => {
@@ -520,77 +543,15 @@ export function NumberleGame({
       </div>
 
       {/* Virtual Keyboard */}
-      <div className="space-y-2 relative z-10">
-        <div className="flex gap-1 justify-center">
-          {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((key) => {
-            const { className, style } = getKeyboardKeyStyle();
-            return (
-              <button
-                key={key}
-                onClick={() => handleVirtualKeyboard(key)}
-                disabled={isProcessingGuess}
-                className={`${className} ${isProcessingGuess ? "opacity-50 cursor-not-allowed" : ""}`}
-                style={style}
-              >
-                {key}
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex gap-1 justify-center">
-          {["+", "-", "*", "/"].map((key) => {
-            const { className, style } = getKeyboardKeyStyle();
-            return (
-              <button
-                key={key}
-                onClick={() => handleVirtualKeyboard(key)}
-                disabled={isProcessingGuess}
-                className={`${className} ${isProcessingGuess ? "opacity-50 cursor-not-allowed" : ""}`}
-                style={style}
-              >
-                {key}
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex gap-2 justify-center mt-4">
-          <button
-            onClick={() => handleVirtualKeyboard("Enter")}
-            disabled={isProcessingGuess}
-            className={`px-6 py-3 text-white rounded font-semibold transition-all duration-300 relative ${
-              isProcessingGuess
-                ? "opacity-60 cursor-not-allowed"
-                : "hover:opacity-80"
-            }`}
-            style={{ backgroundColor: "#0AD9DC" }}
-          >
-            {isProcessingGuess ? (
-              <div className="flex items-center justify-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                <span>Processing...</span>
-              </div>
-            ) : (
-              <>
-                {currentCol === EQUATION_LENGTH &&
-                hasAtLeastOneOperation(currentInput)
-                  ? "Submit Guess"
-                  : "Enter"}
-              </>
-            )}
-          </button>
-          <button
-            onClick={() => handleVirtualKeyboard("Backspace")}
-            disabled={isProcessingGuess}
-            className={`px-4 py-2 bg-gray-500 text-white rounded font-semibold transition-colors duration-200 ${
-              isProcessingGuess 
-                ? "opacity-50 cursor-not-allowed"
-                : "hover:bg-gray-600"
-            }`}
-          >
-            ⌫
-          </button>
-        </div>
-      </div>
+      <VirtualKeyboard
+        onKeyPress={handleKeyPress}
+        isDisabled={isProcessingGuess}
+        keyFeedback={getKeyboardFeedback()}
+        isProcessingGuess={isProcessingGuess}
+        currentCol={currentCol}
+        hasAtLeastOneOperation={hasAtLeastOneOperation}
+        currentInput={currentInput}
+      />
 
       {/* Win/Loss Message - shown when game is over */}
       {gameState?.isGameComplete && (

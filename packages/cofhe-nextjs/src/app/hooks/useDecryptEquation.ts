@@ -249,7 +249,7 @@ export function useDecryptEquation(address?: `0x${string}`) {
     ) {
       console.log("decryptedEquationError", decryptedEquationError);
       console.log("❌ Equation not ready yet (function reverted), retrying...");
-      setFinalizeMessage("Waiting for equation decryption... (retrying)");
+      setFinalizeMessage("Waiting for equation decryption...");
     }
   }, [
     decryptedEquation,
