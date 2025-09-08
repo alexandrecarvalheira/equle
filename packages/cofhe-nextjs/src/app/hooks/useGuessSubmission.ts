@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useWriteContract } from "wagmi";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "../../../contract/contract";
 import { cofhejs, Encryptable } from "cofhejs/web";
@@ -8,7 +8,24 @@ export function useGuessSubmission() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string>("");
 
-  const { writeContract, data: hash } = useWriteContract();
+  const { writeContract, data: hash, error: writeError, reset } = useWriteContract();
+
+  // Handle writeContract errors (like user cancellation)
+  useEffect(() => {
+    if (writeError) {
+      console.error("WriteContract error:", writeError);
+      setIsSubmitting(false);
+      
+      // Check if it's a user rejection
+      if (writeError.message?.includes('User rejected') || 
+          writeError.message?.includes('rejected') ||
+          writeError.message?.includes('denied')) {
+        setSubmissionError("Transaction cancelled by user");
+      } else {
+        setSubmissionError("Transaction failed. Please try again.");
+      }
+    }
+  }, [writeError]);
 
   // Calculate the result using left-to-right evaluation (same as contract logic)
   const calculateResult = (expression: string): number => {
@@ -157,24 +174,35 @@ export function useGuessSubmission() {
       console.log("encryptedEquation", encryptedEquation.data?.[0]);
       console.log("encryptedResult", encryptedResult.data?.[0]);
 
-      // Submit to contract
-      writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: "guess",
-        args: [encryptedEquation.data?.[0], encryptedResult.data?.[0]],
-      });
+      // Clear any previous write errors
+      reset();
 
-      console.log("Contract transaction initiated");
+      try {
+        // Submit to contract
+        writeContract({
+          address: CONTRACT_ADDRESS as `0x${string}`,
+          abi: CONTRACT_ABI,
+          functionName: "guess",
+          args: [encryptedEquation.data?.[0], encryptedResult.data?.[0]],
+        });
 
-      // Call success callback with guess data
-      onSuccess?.({
-        equation,
-        result,
-        rowIndex: 0, // This will be updated by the caller if needed
-      });
+        console.log("Contract transaction initiated");
 
-      return true;
+        // Call success callback with guess data
+        onSuccess?.({
+          equation,
+          result,
+          rowIndex: 0, // This will be updated by the caller if needed
+        });
+
+        return true;
+      } catch (writeErr) {
+        console.error("WriteContract failed:", writeErr);
+        const errorMsg = "Transaction cancelled or failed";
+        setSubmissionError(errorMsg);
+        onError?.(errorMsg);
+        return false;
+      }
     } catch (error) {
       console.error("Failed to submit guess:", error);
       const errorMsg = "Failed to submit guess. Please try again.";
@@ -191,6 +219,7 @@ export function useGuessSubmission() {
     isSubmitting,
     submissionError,
     hash,
+    writeError,
 
     // Functions
     submitGuess,
@@ -200,5 +229,6 @@ export function useGuessSubmission() {
 
     // Utils
     clearError: () => setSubmissionError(""),
+    resetWriteError: reset,
   };
 }

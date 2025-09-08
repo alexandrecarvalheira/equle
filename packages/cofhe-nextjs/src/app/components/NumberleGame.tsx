@@ -1,10 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  useAccount,
-  useWaitForTransactionReceipt,
-} from "wagmi";
+import { useAccount, useWaitForTransactionReceipt } from "wagmi";
 import { useGameStore } from "../store/gameStore";
 import { useDecryptEquation } from "../hooks/useDecryptEquation";
 import { useGameSync } from "../hooks/useGameSync";
@@ -28,14 +25,16 @@ export function NumberleGame({
 }) {
   // Contract and wallet integration
   const { address, isConnected } = useAccount();
-  const { 
-    submitGuess: submitGuessToContract, 
-    isSubmitting, 
-    submissionError, 
+  const {
+    submitGuess: submitGuessToContract,
+    isSubmitting,
+    submissionError,
     hash,
-    clearError 
+    writeError,
+    clearError,
+    resetWriteError,
   } = useGuessSubmission();
-  const { isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+  const { isSuccess: isConfirmed, isError: isTransactionFailed } = useWaitForTransactionReceipt({
     hash,
   });
 
@@ -70,6 +69,9 @@ export function NumberleGame({
   );
   const [warningMessage, setWarningMessage] = useState<string>("");
 
+  // Compute processing state - true when submitting OR waiting for transaction confirmation
+  const isProcessingGuess = isSubmitting || !!pendingGuess;
+
   const hasAtLeastOneOperation = (expression: string): boolean => {
     return /[+\-*/]/.test(expression);
   };
@@ -81,15 +83,45 @@ export function NumberleGame({
     }
   }, [isConfirmed, pendingGuess, gameState]);
 
+  // Handle transaction failure - clear pending guess to allow retry
+  useEffect(() => {
+    if (isTransactionFailed && pendingGuess) {
+      console.log("Transaction failed, clearing pending guess to allow retry");
+      setPendingGuess(null);
+      setWarningMessage("Transaction failed. Please try again.");
+      setTimeout(() => setWarningMessage(""), 3000);
+    }
+  }, [isTransactionFailed, pendingGuess]);
+
+  // Handle writeContract errors (user cancellation, etc.)
+  useEffect(() => {
+    if (writeError && pendingGuess) {
+      console.log("WriteContract error detected, clearing pending guess:", writeError.message);
+      setPendingGuess(null);
+      // Error message is already set by the hook
+    }
+  }, [writeError, pendingGuess]);
+
+  // Handle submission errors - fallback for other error cases
+  useEffect(() => {
+    if (!isSubmitting && pendingGuess && !hash && submissionError) {
+      console.log("Transaction submission failed, clearing pending guess");
+      setPendingGuess(null);
+      // Don't override existing error message from submissionError
+    }
+  }, [isSubmitting, pendingGuess, hash, submissionError]);
+
   const handleTransactionSuccess = async () => {
     if (!pendingGuess) return;
-    
+
     console.log("Processing transaction success...");
     const success = await processTransactionSuccess(pendingGuess, gameState);
-    
+
     if (success) {
-      console.log("Transaction processed successfully, game state should be updated");
-      
+      console.log(
+        "Transaction processed successfully, game state should be updated"
+      );
+
       // Reset input state for next guess after a short delay to ensure game state is updated
       setTimeout(() => {
         setCurrentInput("");
@@ -101,7 +133,7 @@ export function NumberleGame({
   };
 
   const handleKeyPress = (key: string) => {
-    if (gameState?.isGameComplete || shouldShowFinalizeButton) return;
+    if (gameState?.isGameComplete || shouldShowFinalizeButton || isProcessingGuess) return;
 
     if (key === "Enter") {
       submitGuess();
@@ -122,7 +154,6 @@ export function NumberleGame({
 
   // Use calculateResult from the hook for consistency
   const { calculateResult } = useGuessSubmission();
-
 
   // Create display board from gameState + current input
   const getDisplayBoard = (): Tile[][] => {
@@ -174,7 +205,7 @@ export function NumberleGame({
     if (currentCol !== EQUATION_LENGTH) return;
     if (!address || !isConnected) return;
     if (gameState?.isGameComplete || shouldShowFinalizeButton) return;
-    if (isSubmitting) return;
+    if (isProcessingGuess) return;
 
     const currentGuess = currentInput;
 
@@ -187,6 +218,7 @@ export function NumberleGame({
 
     // Clear any previous errors
     clearError();
+    resetWriteError();
     setWarningMessage("");
 
     const playerResult = calculateResult(currentGuess);
@@ -496,7 +528,8 @@ export function NumberleGame({
               <button
                 key={key}
                 onClick={() => handleVirtualKeyboard(key)}
-                className={className}
+                disabled={isProcessingGuess}
+                className={`${className} ${isProcessingGuess ? "opacity-50 cursor-not-allowed" : ""}`}
                 style={style}
               >
                 {key}
@@ -511,7 +544,8 @@ export function NumberleGame({
               <button
                 key={key}
                 onClick={() => handleVirtualKeyboard(key)}
-                className={className}
+                disabled={isProcessingGuess}
+                className={`${className} ${isProcessingGuess ? "opacity-50 cursor-not-allowed" : ""}`}
                 style={style}
               >
                 {key}
@@ -522,15 +556,36 @@ export function NumberleGame({
         <div className="flex gap-2 justify-center mt-4">
           <button
             onClick={() => handleVirtualKeyboard("Enter")}
-            className="px-4 py-2 text-white rounded font-semibold transition-colors duration-200 hover:opacity-80"
+            disabled={isProcessingGuess}
+            className={`px-6 py-3 text-white rounded font-semibold transition-all duration-300 relative ${
+              isProcessingGuess
+                ? "opacity-60 cursor-not-allowed"
+                : "hover:opacity-80"
+            }`}
             style={{ backgroundColor: "#0AD9DC" }}
           >
-            Enter
+            {isProcessingGuess ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                <span>Processing...</span>
+              </div>
+            ) : (
+              <>
+                {currentCol === EQUATION_LENGTH &&
+                hasAtLeastOneOperation(currentInput)
+                  ? "Submit Guess"
+                  : "Enter"}
+              </>
+            )}
           </button>
           <button
             onClick={() => handleVirtualKeyboard("Backspace")}
-            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded font-semibold
-                       transition-colors duration-200"
+            disabled={isProcessingGuess}
+            className={`px-4 py-2 bg-gray-500 text-white rounded font-semibold transition-colors duration-200 ${
+              isProcessingGuess 
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:bg-gray-600"
+            }`}
           >
             ⌫
           </button>
