@@ -56,7 +56,7 @@ const clashDisplay = localFont({
 export async function generateMetadata(): Promise<Metadata> {
   const URL = process.env.NEXT_PUBLIC_URL as string;
   return {
-    title: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
+    title: "Equle* - powered by Fhenix",
     description: "Find the exact mathematical expression!",
     other: {
       "fc:frame": JSON.stringify({

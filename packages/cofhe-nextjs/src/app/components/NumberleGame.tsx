@@ -315,10 +315,10 @@ export function NumberleGame({
       const guess = gameState.guesses[rowIndex];
       const value = guess.result;
 
-      // Get arrow based on result feedback
+      // Get feedback text based on result feedback
       let arrow = "";
-      if (guess.resultFeedback === "less") arrow = "↑";
-      else if (guess.resultFeedback === "greater") arrow = "↓";
+      if (guess.resultFeedback === "less") arrow = "LOW";
+      else if (guess.resultFeedback === "greater") arrow = "HIGH";
       else if (guess.resultFeedback === "equal") arrow = "✓";
 
       return { value, arrow };
@@ -346,8 +346,8 @@ export function NumberleGame({
       const guess = gameState.guesses[rowIndex];
       let feedbackText = "";
       if (guess.resultFeedback === "equal") feedbackText = " (Correct!)";
-      else if (guess.resultFeedback === "less") feedbackText = " (Too low)";
-      else if (guess.resultFeedback === "greater") feedbackText = " (Too high)";
+      else if (guess.resultFeedback === "less") feedbackText = " (Too low - aim higher!)";
+      else if (guess.resultFeedback === "greater") feedbackText = " (Too high - aim lower!)";
 
       return `Result: ${guess.result}${feedbackText}`;
     }
@@ -497,7 +497,7 @@ export function NumberleGame({
                       {getResultDisplay(rowIndex).value}
                     </span>
                     {getResultDisplay(rowIndex).arrow && (
-                      <span className="text-xs">
+                      <span className="text-xs font-bold">
                         {getResultDisplay(rowIndex).arrow}
                       </span>
                     )}
