@@ -3,6 +3,7 @@ import { CONTRACT_ADDRESS, CONTRACT_ABI } from "../../../contract/contract";
 import { useGameStore } from "../store/gameStore";
 import { cofhejs, FheTypes } from "cofhejs/web";
 import { analyzeXorResult, extractOriginalEquation } from "../../../utils";
+import { usePlayerAttempts } from "./usePlayerAttempts";
 
 export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
   const { gameState, setGameState, setGameStateSynced } = useGameStore();
@@ -15,69 +16,12 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
     args: address && gameId ? [gameId, address] : undefined,
   });
 
+  // Get current attempt from player game state
+  const playerState = playerGameStateData as [bigint, boolean] | undefined;
+  const currentAttempt = playerState ? Number(playerState[0]) : 0;
 
-  // Contract hooks for each possible player attempt - get [equationGuess, resultGuess, equationXor, encryptedResultFeedback]
-  const { data: playerAttempt0Data, refetch: refetchAttempt0 } = useReadContract({
-    address: CONTRACT_ADDRESS as `0x${string}`,
-    abi: CONTRACT_ABI,
-    functionName: "getPlayerAttempt",
-    args: address && gameId ? [gameId, address, 0] : undefined,
-  });
-
-  const { data: playerAttempt1Data, refetch: refetchAttempt1 } = useReadContract({
-    address: CONTRACT_ADDRESS as `0x${string}`,
-    abi: CONTRACT_ABI,
-    functionName: "getPlayerAttempt", 
-    args: address && gameId ? [gameId, address, 1] : undefined,
-  });
-
-  const { data: playerAttempt2Data, refetch: refetchAttempt2 } = useReadContract({
-    address: CONTRACT_ADDRESS as `0x${string}`,
-    abi: CONTRACT_ABI,
-    functionName: "getPlayerAttempt",
-    args: address && gameId ? [gameId, address, 2] : undefined,
-  });
-
-  const { data: playerAttempt3Data, refetch: refetchAttempt3 } = useReadContract({
-    address: CONTRACT_ADDRESS as `0x${string}`,
-    abi: CONTRACT_ABI,
-    functionName: "getPlayerAttempt",
-    args: address && gameId ? [gameId, address, 3] : undefined,
-  });
-
-  const { data: playerAttempt4Data, refetch: refetchAttempt4 } = useReadContract({
-    address: CONTRACT_ADDRESS as `0x${string}`,
-    abi: CONTRACT_ABI,
-    functionName: "getPlayerAttempt",
-    args: address && gameId ? [gameId, address, 4] : undefined,
-  });
-
-  const { data: playerAttempt5Data, refetch: refetchAttempt5 } = useReadContract({
-    address: CONTRACT_ADDRESS as `0x${string}`,
-    abi: CONTRACT_ABI,
-    functionName: "getPlayerAttempt",
-    args: address && gameId ? [gameId, address, 5] : undefined,
-  });
-
-  // Array of attempt data for easy access
-  const attemptDataArray = [
-    playerAttempt0Data,
-    playerAttempt1Data, 
-    playerAttempt2Data,
-    playerAttempt3Data,
-    playerAttempt4Data,
-    playerAttempt5Data,
-  ];
-
-  // Array of refetch functions for easy access
-  const attemptRefetchArray = [
-    refetchAttempt0,
-    refetchAttempt1,
-    refetchAttempt2,
-    refetchAttempt3,
-    refetchAttempt4,
-    refetchAttempt5,
-  ];
+  // Use the new hook to get only the needed attempts
+  const attemptDataArray = usePlayerAttempts(address, gameId, currentAttempt);
 
 
   // CoFHE unsealing utility function
@@ -312,14 +256,8 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
       // Get the last attempt number from current game state
       const lastAttemptIndex = currentGameState.currentAttempt;
       
-      // Check if refetch function exists for this attempt index
-      if (!attemptRefetchArray[lastAttemptIndex]) {
-        return false;
-      }
-      
-      // Refetch only the specific attempt data to get fresh XOR result
-      const refetchResult = await attemptRefetchArray[lastAttemptIndex]();
-      const result = refetchResult.data as [bigint, bigint, bigint, bigint];
+      // Get the attempt data directly from the array
+      const result = attemptDataArray[lastAttemptIndex] as [bigint, bigint, bigint, bigint];
       
       if (!result || !Array.isArray(result) || result.length !== 4) {
         return false;
