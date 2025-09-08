@@ -22,7 +22,9 @@ export interface GameState {
 
 interface GameStore {
   gameState: GameState | null;
+  walletAddress: string | null;
   setGameState: (gameState: GameState) => void;
+  setWalletAddress: (address: string | null) => void;
   clearGameState: () => void;
   updateCurrentAttempt: (attempt: number) => void;
   addGuess: (guess: GuessData) => void;
@@ -45,9 +47,12 @@ export const useGameStore = create<GameStore>()(
   persist(
     (set) => ({
       gameState: null,
+      walletAddress: null,
       isGameStateSynced: false,
 
       setGameState: (gameState) => set({ gameState, isGameStateSynced: true }),
+
+      setWalletAddress: (address) => set({ walletAddress: address }),
 
       clearGameState: () => set({ gameState: null, isGameStateSynced: false }),
 
@@ -98,6 +103,7 @@ export const useGameStore = create<GameStore>()(
       version: 1, // for future migrations
       partialize: (state) => ({
         gameState: state.gameState,
+        walletAddress: state.walletAddress,
         isGameStateSynced: state.isGameStateSynced,
       }),
     }

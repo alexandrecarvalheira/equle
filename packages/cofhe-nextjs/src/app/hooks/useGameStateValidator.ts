@@ -16,7 +16,7 @@ export function useGameStateValidator(
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { gameState, isGameStateSynced, clearGameState, setGameStateSynced } = useGameStore();
+  const { gameState, walletAddress, isGameStateSynced, clearGameState, setGameStateSynced, setWalletAddress } = useGameStore();
   const { isInitialized: isCofheInitialized } = useCofheStore();
   const { syncGameStateFromContract } = useGameSync(address, currentGameId);
 
@@ -29,14 +29,19 @@ export function useGameStateValidator(
     query: { enabled: false }, // Manual fetching only
   });
 
-  // Clear game state when account changes or disconnects
+  // Smart wallet address management - only clear when different address connects
   useEffect(() => {
-    if (!address) {
+    if (address && walletAddress && address !== walletAddress) {
+      // Different address connected - clear state and start fresh
       clearGameState();
-      setSyncStatus("loading");
+      setWalletAddress(address);
+      setSyncStatus("needs-sync");
       setError(null);
+    } else if (address && !walletAddress) {
+      // First connection or same address reconnecting - just set the address
+      setWalletAddress(address);
     }
-  }, [address, clearGameState]);
+  }, [address, walletAddress]);
 
   // Clear game state when game ID changes
   useEffect(() => {

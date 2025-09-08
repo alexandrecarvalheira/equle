@@ -127,19 +127,21 @@ export function useDecryptEquation(address?: `0x${string}`) {
     console.log("Current local game state:", {
       hasWon: gameState.hasWon,
       isGameComplete: gameState.isGameComplete,
-      currentAttempt: gameState.currentAttempt
+      currentAttempt: gameState.currentAttempt,
     });
 
     try {
       const result = await refetchPlayerGameState();
       if (result.data) {
         const [, hasWon] = result.data as [bigint, boolean];
-        
+
         console.log("🏆 On-chain win status:", hasWon);
         console.log("🎯 Local win status:", gameState.hasWon);
 
         if (hasWon && !gameState.hasWon) {
-          console.log("Player has won on-chain but not locally, updating game state");
+          console.log(
+            "Player has won on-chain but not locally, updating game state"
+          );
 
           // Update the game state to reflect the win
           const updatedGameState = {
@@ -158,8 +160,10 @@ export function useDecryptEquation(address?: `0x${string}`) {
             setIsFinalizingGame(false);
           }, 3000);
         } else if (hasWon && gameState.hasWon) {
-          console.log("✅ Player has already won both on-chain and locally - no update needed");
-          
+          console.log(
+            "✅ Player has already won both on-chain and locally - no update needed"
+          );
+
           // Just show success message and finish finalization
           setFinalizeMessage("🎉 Victory claimed successfully! 🎉");
           setTimeout(() => {
@@ -303,15 +307,6 @@ export function useDecryptEquation(address?: `0x${string}`) {
     checkDecryptedEquationOnLoad();
   }, [gameState, refetchDecryptedEquation, decryptedEquation]);
 
-  // Effect to track decryptedEquation value changes
-  useEffect(() => {
-    console.log("🔍 decryptedEquation value changed:", {
-      value: decryptedEquation,
-      hasDecryptedEquation: hasDecryptedEquation(),
-      isWonButNotFinalized: isWonButNotFinalized(),
-    });
-  }, [decryptedEquation]);
-
   return {
     // State
     isFinalizingGame,
@@ -326,6 +321,7 @@ export function useDecryptEquation(address?: `0x${string}`) {
     refetchDecryptedEquation,
 
     // Computed values
-    shouldShowFinalizeButton: isWonButNotFinalized() || isWonAndNeedsVictoryClaim(),
+    shouldShowFinalizeButton:
+      isWonButNotFinalized() || isWonAndNeedsVictoryClaim(),
   };
 }
