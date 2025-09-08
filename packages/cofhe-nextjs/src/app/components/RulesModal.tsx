@@ -22,8 +22,7 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
         <div className="px-6 overflow-y-auto flex-1">
           <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
             <p>
-              • Find the exact 5-character mathematical expression in 6
-              tries
+              • Find the exact 5-character mathematical expression in 6 tries
             </p>
             <p>• You must match the exact equation, not just the result</p>
             <p>• Each guess must be valid (no = sign, use +, -, *, /)</p>
@@ -44,9 +43,7 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 bg-yellow-500 rounded"></div>
-                  <span>
-                    Yellow: Right digit/operator in wrong position
-                  </span>
+                  <span>Yellow: Right digit/operator in wrong position</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 bg-gray-500 rounded"></div>
@@ -61,38 +58,32 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
                 <p>• After each guess, check the result tile for hints:</p>
                 <div className="space-y-1 ml-2">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-green-500 rounded flex items-center justify-center text-white text-xs font-bold">
+                    <div className="w-10 h-6 bg-green-500 rounded flex items-center justify-center text-white text-xs font-bold">
                       ✓
                     </div>
                     <span>Green: Your result matches exactly!</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div
-                      className="w-6 h-6 border rounded flex items-center justify-center text-white text-xs font-bold"
-                      style={{
-                        backgroundColor: "#0AD9DC",
-                        borderColor: "#0AD9DC",
-                      }}
-                    >
-                      ↑
+                    <div className="w-10 h-6 bg-cyan-400 rounded flex items-center justify-center text-white text-xs font-bold">
+                      LOW
                     </div>
                     <span>
-                      Blue with ↑: Your result is too low (aim higher)
+                      Blue with "LOW": Your result is too low (aim higher)
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-red-100 border border-red-300 rounded flex items-center justify-center text-red-800 text-xs font-bold">
-                      ↓
+                    <div className="w-10 h-6 bg-red-400 rounded flex items-center justify-center text-white text-xs font-bold">
+                      HIGH
                     </div>
                     <span>
-                      Red with ↓: Your result is too high (aim lower)
+                      Red with "HIGH": Your result is too high (aim lower)
                     </span>
                   </div>
                 </div>
                 <p className="mt-2">
-                  <strong>Example:</strong> If target result is 15 and you
-                  guess "2*3+4" = 10 (left-to-right: 2*3=6, then 6+4=10),
-                  you'll see a blue tile with ↑ (too low)
+                  <strong>Example:</strong> If target result is 15 and you guess
+                  "2*3+4" = 10 (left-to-right: 2*3=6, then 6+4=10), you'll see a
+                  blue tile with "LOW" (too low)
                 </p>
               </div>
             </div>

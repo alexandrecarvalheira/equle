@@ -14,6 +14,8 @@ import { useCurrentGameId } from "./hooks/useCurrentGameId";
 import { useGameStateValidator } from "./hooks/useGameStateValidator";
 import { GameSyncLoading } from "./components/GameSyncLoading";
 import { GameSyncError } from "./components/GameSyncError";
+import { FHEModal } from "./components/FHEModal";
+import { useState } from "react";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -23,6 +25,7 @@ export default function Home() {
     address, 
     currentGameId
   );
+  const [showFHE, setShowFHE] = useState(false);
 
   console.log("isConnected", address);
   console.log("syncStatus", syncStatus, "isValidating", isValidating);
@@ -88,10 +91,26 @@ export default function Home() {
                 <NumberleGame gameId={currentGameId} />
               )}
             </div>
+
+            {/* FHE Information Button */}
+            {isConnected && isCofheInitialized && (
+              <div className="text-center mt-6">
+                <button
+                  onClick={() => setShowFHE(true)}
+                  className="text-sm underline hover:opacity-80 transition-opacity duration-200"
+                  style={{ color: "#0AD9DC" }}
+                >
+                  🔐 Why is this game secure? Learn about FHE
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
       <Footer />
+      
+      {/* FHE Modal */}
+      <FHEModal isOpen={showFHE} onClose={() => setShowFHE(false)} />
     </div>
   );
 }
