@@ -37,6 +37,8 @@ task("setgame-equle", "Set game on the deployed contract").setAction(
     const equle = Equle.attach(equleAddress) as unknown as Equle;
 
     const gameId = await equle.getCurrentGameId();
+    const gameState = await equle.getPlayerAttempt(gameId, signer.address, 0);
+    console.log("Game state:", gameState);
     const equation = "1+2*3";
     const result = 9; //
 

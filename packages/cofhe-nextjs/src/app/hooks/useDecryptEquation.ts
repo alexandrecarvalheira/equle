@@ -31,13 +31,9 @@ export function useDecryptEquation(address?: `0x${string}`) {
     account: address,
   });
 
-  // Check if decrypted equation is already available
+  // Check if decrypted equation is already available (0n means finalized, ready to claim)
   const hasDecryptedEquation = (): boolean => {
-    return !!(
-      decryptedEquation &&
-      decryptedEquation !== "0x" &&
-      decryptedEquation !== "0x0000000000000000000000000000000000000000"
-    );
+    return decryptedEquation !== undefined && decryptedEquation !== null;
   };
 
   // Check if the last guess is all correct (all green)
@@ -50,6 +46,11 @@ export function useDecryptEquation(address?: `0x${string}`) {
   // Check if game is won but not finalized yet
   const isWonButNotFinalized = (): boolean => {
     return isLastGuessAllCorrect() && !gameState?.hasWon;
+  };
+
+  // Check if game is already won and we need to claim victory
+  const isWonAndNeedsVictoryClaim = (): boolean => {
+    return !!(gameState?.hasWon && !hasDecryptedEquation());
   };
 
   // Call DecryptFinalizedEquation when equation is already decrypted
@@ -299,6 +300,6 @@ export function useDecryptEquation(address?: `0x${string}`) {
     refetchDecryptedEquation,
 
     // Computed values
-    shouldShowFinalizeButton: isWonButNotFinalized(),
+    shouldShowFinalizeButton: isWonButNotFinalized() || isWonAndNeedsVictoryClaim(),
   };
 }

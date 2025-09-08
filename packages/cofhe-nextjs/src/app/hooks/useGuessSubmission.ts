@@ -49,10 +49,10 @@ export function useGuessSubmission() {
 
   const isValidExpression = (expression: string): boolean => {
     const EQUATION_LENGTH = 5;
-    
+
     if (expression.length !== EQUATION_LENGTH) return false;
     if (expression.includes("=")) return false;
-    
+
     const hasAtLeastOneOperation = /[+\-*/]/.test(expression);
     if (!hasAtLeastOneOperation) return false;
 
@@ -94,20 +94,20 @@ export function useGuessSubmission() {
       console.log("All rotations (as BigInt):", allRotations.toString());
 
       // Encrypt the equation rotations
-      const encryptedEquation = await cofhejs.encrypt(
-        [Encryptable.uint128(allRotations)]
-      );
+      const encryptedEquation = await cofhejs.encrypt([
+        Encryptable.uint128(allRotations),
+      ]);
 
       // Encrypt the result
-      const encryptedResult = await cofhejs.encrypt(
-        [Encryptable.uint8(BigInt(result))]
-      );
+      const encryptedResult = await cofhejs.encrypt([
+        Encryptable.uint8(BigInt(result)),
+      ]);
 
       console.log("Encryption successful:", {
         equation,
         result,
-        encryptedEquation: encryptedEquation.data?.[0]?.toString() || 'no data',
-        encryptedResult: encryptedResult.data?.[0]?.toString() || 'no data',
+        encryptedEquation: encryptedEquation.data?.[0]?.toString() || "no data",
+        encryptedResult: encryptedResult.data?.[0]?.toString() || "no data",
       });
 
       return {
@@ -125,7 +125,11 @@ export function useGuessSubmission() {
   const submitGuess = async (
     equation: string,
     address: `0x${string}`,
-    onSuccess?: (data: { equation: string; result: number; rowIndex: number }) => void,
+    onSuccess?: (data: {
+      equation: string;
+      result: number;
+      rowIndex: number;
+    }) => void,
     onError?: (error: string) => void
   ): Promise<boolean> => {
     if (!address) {
@@ -185,13 +189,13 @@ export function useGuessSubmission() {
     isSubmitting,
     submissionError,
     hash,
-    
+
     // Functions
     submitGuess,
     encryptGuess,
     calculateResult,
     isValidExpression,
-    
+
     // Utils
     clearError: () => setSubmissionError(""),
   };

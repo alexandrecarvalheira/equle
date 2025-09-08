@@ -40,13 +40,10 @@ export function NumberleGame({
   });
 
   // Game state management
-  const { gameState, isGameStateSynced } = useGameStore();
+  const { gameState } = useGameStore();
 
-  // Game synchronization hook
-  const { syncGameStateFromContract, processTransactionSuccess } = useGameSync(
-    address,
-    propGameId
-  );
+  // Game synchronization hook - only need processTransactionSuccess for handling completed transactions
+  const { processTransactionSuccess } = useGameSync(address, propGameId);
 
   // Decryption hook for finalize game functionality
   const {
@@ -79,45 +76,24 @@ export function NumberleGame({
 
   // Handle transaction confirmation
   useEffect(() => {
-    console.log("🔍 Transaction confirmation useEffect triggered:", {
-      isConfirmed,
-      pendingGuess: !!pendingGuess,
-      gameState: !!gameState,
-    });
-    
     if (isConfirmed && pendingGuess && gameState) {
-      console.log("✅ All conditions met, calling handleTransactionSuccess");
       handleTransactionSuccess();
-    } else {
-      console.log("⏸️ Conditions not met for transaction success processing");
     }
   }, [isConfirmed, pendingGuess, gameState]);
 
   const handleTransactionSuccess = async () => {
-    console.log("🔥 handleTransactionSuccess called", {
-      pendingGuess: !!pendingGuess,
-      gameState: !!gameState,
-    });
+    if (!pendingGuess) return;
     
-    if (!pendingGuess) {
-      console.log("❌ No pending guess found");
-      return;
-    }
-    
-    console.log("📞 Calling processTransactionSuccess...");
+    console.log("Processing transaction success...");
     const success = await processTransactionSuccess(pendingGuess, gameState);
     
-    console.log("✨ processTransactionSuccess result:", success);
-    
     if (success) {
-      console.log("🎉 Transaction success! Resetting UI state");
       // Reset input state for next guess
       setCurrentInput("");
       setCurrentCol(0);
       // Clear pending guess
       setPendingGuess(null);
-    } else {
-      console.log("❌ Transaction success processing failed");
+      console.log("Transaction processed successfully");
     }
   };
 
@@ -360,13 +336,6 @@ export function NumberleGame({
   const handleVirtualKeyboard = (key: string) => {
     handleKeyPress(key);
   };
-
-  // Contract sync effect - runs when wallet state changes
-  useEffect(() => {
-    if (address && isConnected && propGameId !== null && !isGameStateSynced) {
-      syncGameStateFromContract();
-    }
-  }, [address, isConnected, propGameId, isGameStateSynced, syncGameStateFromContract]);
 
   // Keyboard handler effect
   useEffect(() => {
