@@ -81,6 +81,16 @@ export function useGuessSubmission() {
       return false;
     }
 
+    // Check if the result would be negative
+    try {
+      const result = calculateResult(expression);
+      if (result < 0) {
+        return false;
+      }
+    } catch (error) {
+      return false;
+    }
+
     return true;
   };
 
