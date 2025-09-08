@@ -96,18 +96,18 @@ export function useGuessSubmission() {
       // Encrypt the equation rotations
       const encryptedEquation = await cofhejs.encrypt([
         Encryptable.uint128(allRotations),
-      ]);
+      ] as const);
 
       // Encrypt the result
       const encryptedResult = await cofhejs.encrypt([
-        Encryptable.uint8(BigInt(result)),
-      ]);
+        Encryptable.uint16(BigInt(result)),
+      ] as const);
 
       console.log("Encryption successful:", {
         equation,
         result,
-        encryptedEquation: encryptedEquation.data?.[0]?.toString() || "no data",
-        encryptedResult: encryptedResult.data?.[0]?.toString() || "no data",
+        encryptedEquation: encryptedEquation.data?.[0] || "no data",
+        encryptedResult: encryptedResult.data?.[0] || "no data",
       });
 
       return {
@@ -154,6 +154,8 @@ export function useGuessSubmission() {
       const { encryptedEquation, encryptedResult, result } = encryptedData;
 
       console.log("Submitting encrypted guess to contract...");
+      console.log("encryptedEquation", encryptedEquation.data?.[0]);
+      console.log("encryptedResult", encryptedResult.data?.[0]);
 
       // Submit to contract
       writeContract({

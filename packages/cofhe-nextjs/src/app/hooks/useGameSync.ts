@@ -26,42 +26,42 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
   );
 
   // Contract hooks for each possible player attempt - get [equationGuess, resultGuess, equationXor, encryptedResultFeedback]
-  const { data: playerAttempt0Data } = useReadContract({
+  const { data: playerAttempt0Data, refetch: refetchAttempt0 } = useReadContract({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: CONTRACT_ABI,
     functionName: "getPlayerAttempt",
     args: address && gameId ? [gameId, address, 0] : undefined,
   });
 
-  const { data: playerAttempt1Data } = useReadContract({
+  const { data: playerAttempt1Data, refetch: refetchAttempt1 } = useReadContract({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: CONTRACT_ABI,
     functionName: "getPlayerAttempt", 
     args: address && gameId ? [gameId, address, 1] : undefined,
   });
 
-  const { data: playerAttempt2Data } = useReadContract({
+  const { data: playerAttempt2Data, refetch: refetchAttempt2 } = useReadContract({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: CONTRACT_ABI,
     functionName: "getPlayerAttempt",
     args: address && gameId ? [gameId, address, 2] : undefined,
   });
 
-  const { data: playerAttempt3Data } = useReadContract({
+  const { data: playerAttempt3Data, refetch: refetchAttempt3 } = useReadContract({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: CONTRACT_ABI,
     functionName: "getPlayerAttempt",
     args: address && gameId ? [gameId, address, 3] : undefined,
   });
 
-  const { data: playerAttempt4Data } = useReadContract({
+  const { data: playerAttempt4Data, refetch: refetchAttempt4 } = useReadContract({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: CONTRACT_ABI,
     functionName: "getPlayerAttempt",
     args: address && gameId ? [gameId, address, 4] : undefined,
   });
 
-  const { data: playerAttempt5Data } = useReadContract({
+  const { data: playerAttempt5Data, refetch: refetchAttempt5 } = useReadContract({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: CONTRACT_ABI,
     functionName: "getPlayerAttempt",
@@ -76,6 +76,16 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
     playerAttempt3Data,
     playerAttempt4Data,
     playerAttempt5Data,
+  ];
+
+  // Array of refetch functions for easy access
+  const attemptRefetchArray = [
+    refetchAttempt0,
+    refetchAttempt1,
+    refetchAttempt2,
+    refetchAttempt3,
+    refetchAttempt4,
+    refetchAttempt5,
   ];
 
   console.log("🔍 All attempt data from blockchain:", attemptDataArray);
@@ -409,162 +419,109 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
     try {
       console.log("Transaction confirmed, processing feedback...");
 
-      // Get encrypted data from the direct blockchain data
-      const attemptIndex = currentGameState.currentAttempt;
-      console.log(`📥 Getting encrypted data for attempt ${attemptIndex} from blockchain...`);
+      // Get the last attempt number from current game state
+      const lastAttemptIndex = currentGameState.currentAttempt;
+      console.log(`📥 Getting XOR feedback for attempt ${lastAttemptIndex}...`);
       
-      const result = attemptDataArray[attemptIndex] as [bigint, bigint, bigint, bigint];
+      // Refetch only the specific attempt data to get fresh XOR result
+      const refetchResult = await attemptRefetchArray[lastAttemptIndex]();
+      const result = refetchResult.data as [bigint, bigint, bigint, bigint];
       
-      console.log(`📊 Raw transaction feedback result for attempt ${attemptIndex}:`, result);
+      console.log(`📊 Raw attempt data for ${lastAttemptIndex}:`, result);
       
       if (!result || !Array.isArray(result) || result.length !== 4) {
-        console.error(`❌ Invalid transaction feedback format for attempt ${attemptIndex}:`, result);
+        console.error(`❌ Invalid attempt data format:`, result);
         return false;
       }
       
-      const [equationGuess, resultGuess, equationXor, encryptedResultFeedback] = result;
+      // We only need the XOR result (third element) for color feedback
+      const [, , equationXor, encryptedResultFeedback] = result;
 
-      console.log("🔐 Encrypted feedback received from blockchain:", {
-        equationGuess: equationGuess?.toString() || 'undefined',
-        resultGuess: resultGuess?.toString() || 'undefined',
+      console.log("🔐 XOR and result feedback from blockchain:", {
         equationXor: equationXor?.toString() || 'undefined',
         resultFeedback: encryptedResultFeedback?.toString() || 'undefined',
       });
 
-      // Check if we have valid encrypted data before attempting to unseal
-      if (
-        equationGuess === BigInt(0) &&
-        resultGuess === BigInt(0) &&
-        equationXor === BigInt(0) &&
-        encryptedResultFeedback === BigInt(0)
-      ) {
-        console.warn(
-          "⚠️ All encrypted values are 0 - transaction might not be fully processed yet"
-        );
+      // Check if we have valid XOR data
+      if (!equationXor || equationXor === BigInt(0)) {
+        console.warn("⚠️ XOR value is 0 - transaction might not be processed yet");
         return false;
       }
 
-      // Unseal all encrypted values
-      const [
-        unsealedEquation,
-        unsealedResult,
-        unsealedXor,
-        unsealedResultFeedback,
-      ] = await Promise.all([
-        unsealValue(equationGuess as bigint, FheTypes.Uint128),
-        unsealValue(resultGuess as bigint, FheTypes.Uint8),
+      // Unseal only the XOR and result feedback
+      const [unsealedXor, unsealedResultFeedback] = await Promise.all([
         unsealValue(equationXor as bigint, FheTypes.Uint128),
         unsealValue(encryptedResultFeedback as bigint, FheTypes.Uint8),
       ]);
 
-      console.log("Unsealed feedback:", {
-        equation: unsealedEquation?.data?.toString() || "null",
-        result: unsealedResult?.data?.toString() || "null",
+      console.log("Unsealed XOR feedback:", {
         xor: unsealedXor?.data?.toString() || "null",
         resultFeedback: unsealedResultFeedback?.data?.toString() || "null",
       });
 
       // Check if unsealing was successful
-      if (
-        !unsealedEquation?.success ||
-        !unsealedResult?.success ||
-        !unsealedXor?.success ||
-        !unsealedResultFeedback?.success
-      ) {
-        console.error("Failed to unseal transaction feedback:", {
-          equation: unsealedEquation?.error || "unknown error",
-          result: unsealedResult?.error || "unknown error",
+      if (!unsealedXor?.success || !unsealedResultFeedback?.success) {
+        console.error("Failed to unseal XOR feedback:", {
           xor: unsealedXor?.error || "unknown error",
           resultFeedback: unsealedResultFeedback?.error || "unknown error",
         });
         return false;
       }
 
-      // Process the feedback
-      const equationString = extractOriginalEquation(
-        BigInt(unsealedEquation.data || 0)
-      );
-      const resultValue = Number(unsealedResult.data || 0);
+      // Process the XOR result to get color feedback
       const xorValue = BigInt(unsealedXor.data || 0);
+      console.log("Processing XOR value:", xorValue.toString());
 
-      console.log("Processed feedback:", {
-        equationString,
-        resultValue,
-        xorValue: xorValue.toString(),
-      });
+      // Analyze XOR to get tile feedback colors
+      const feedback = analyzeXorResult(xorValue);
+      console.log("Color feedback from XOR:", feedback);
 
-      // Verify this matches our submitted guess
-      if (
-        equationString === pendingGuess.equation &&
-        resultValue === pendingGuess.result
-      ) {
-        console.log("✅ Feedback matches submitted guess");
-
-        // Analyze XOR to get tile feedback
-        const feedback = analyzeXorResult(xorValue);
-
-        // Map result feedback number to ResultFeedback type
-        const getResultFeedback = (
-          feedback: number
-        ): "equal" | "less" | "greater" => {
-          if (feedback === 0) return "equal";
-          if (feedback === 1) return "less";
-          if (feedback === 2) return "greater";
-          return "equal";
-        };
-
-        // Convert feedback object to CellState array
-        const cellStates: ("correct" | "present" | "absent")[] = [];
-        for (let i = 0; i < 5; i++) {
-          if (feedback.green[i]) {
-            cellStates.push("correct");
-          } else if (feedback.yellow[i]) {
-            cellStates.push("present");
-          } else {
-            cellStates.push("absent");
-          }
+      // Convert feedback object to CellState array
+      const cellStates: ("correct" | "present" | "absent")[] = [];
+      for (let i = 0; i < 5; i++) {
+        if (feedback.green[i]) {
+          cellStates.push("correct");
+        } else if (feedback.yellow[i]) {
+          cellStates.push("present");
+        } else {
+          cellStates.push("absent");
         }
-
-        const guess = {
-          equation: pendingGuess.equation,
-          result: pendingGuess.result.toString(),
-          feedback: cellStates,
-          resultFeedback: getResultFeedback(
-            Number(unsealedResultFeedback.data || 0)
-          ),
-        };
-
-        console.log("Adding guess to game state:", guess);
-
-        console.log(
-          "Transaction processed successfully, re-syncing from contract..."
-        );
-
-        // Fetch the updated player state from contract (source of truth)
-        const updatedPlayerState = await fetchPlayerGameState(
-          currentGameState.gameId
-        );
-        if (!updatedPlayerState) {
-          console.error("Failed to fetch updated player state from contract");
-          return false;
-        }
-
-        // Re-sync the entire game state from contract
-        // This ensures currentAttempt and all data comes from the blockchain
-        await rebuildGameStateFromContract(
-          currentGameState.gameId,
-          updatedPlayerState
-        );
-
-        console.log("Game state re-synced successfully from contract");
-        return true;
-      } else {
-        console.error("❌ Feedback mismatch!", {
-          expected: pendingGuess,
-          received: { equation: equationString, result: resultValue },
-        });
-        return false;
       }
+
+      // Map result feedback number to ResultFeedback type
+      const getResultFeedback = (feedback: number): "equal" | "less" | "greater" => {
+        if (feedback === 0) return "equal";
+        if (feedback === 1) return "less";
+        if (feedback === 2) return "greater";
+        return "equal";
+      };
+
+      const guess = {
+        equation: pendingGuess.equation,
+        result: pendingGuess.result.toString(),
+        feedback: cellStates,
+        resultFeedback: getResultFeedback(Number(unsealedResultFeedback.data || 0)),
+      };
+
+      console.log("✅ Processed guess with colors:", guess);
+
+      // Add the guess to the local game state
+      const updatedGameState = {
+        ...currentGameState,
+        guesses: [...currentGameState.guesses, guess],
+        currentAttempt: currentGameState.currentAttempt + 1,
+        hasWon: cellStates.every(f => f === "correct") && guess.resultFeedback === "equal",
+        isGameComplete: (cellStates.every(f => f === "correct") && guess.resultFeedback === "equal") || currentGameState.currentAttempt + 1 >= 6
+      };
+
+      console.log("Updating game state with color feedback:", updatedGameState);
+      
+      // Update the game state with color feedback
+      setGameState(updatedGameState);
+      setGameStateSynced(true);
+
+      console.log("🎨 Game state updated with color feedback successfully");
+      return true;
     } catch (error) {
       console.error("Failed to process transaction success:", error);
       return false;

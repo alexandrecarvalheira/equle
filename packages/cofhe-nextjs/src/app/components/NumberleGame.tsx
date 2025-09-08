@@ -88,12 +88,15 @@ export function NumberleGame({
     const success = await processTransactionSuccess(pendingGuess, gameState);
     
     if (success) {
-      // Reset input state for next guess
-      setCurrentInput("");
-      setCurrentCol(0);
-      // Clear pending guess
-      setPendingGuess(null);
-      console.log("Transaction processed successfully");
+      console.log("Transaction processed successfully, game state should be updated");
+      
+      // Reset input state for next guess after a short delay to ensure game state is updated
+      setTimeout(() => {
+        setCurrentInput("");
+        setCurrentCol(0);
+        setPendingGuess(null);
+        console.log("Input state cleared after game state update");
+      }, 100);
     }
   };
 
