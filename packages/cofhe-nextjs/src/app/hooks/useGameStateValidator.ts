@@ -32,7 +32,6 @@ export function useGameStateValidator(
   // Clear game state when account changes or disconnects
   useEffect(() => {
     if (!address) {
-      console.log("🔄 Account disconnected, clearing game state");
       clearGameState();
       setSyncStatus("loading");
       setError(null);
@@ -42,7 +41,6 @@ export function useGameStateValidator(
   // Clear game state when game ID changes
   useEffect(() => {
     if (currentGameId !== null && gameState && gameState.gameId !== currentGameId) {
-      console.log("🔄 Game ID changed, clearing old game state");
       clearGameState();
       setSyncStatus("needs-sync");
       setError(null);
@@ -51,14 +49,12 @@ export function useGameStateValidator(
 
   const validateAndSync = useCallback(async () => {
     if (!address || currentGameId === null) {
-      console.log("⏸️ Cannot validate - missing address or gameId");
       setSyncStatus("loading");
       return;
     }
 
     // Check if CoFHE is initialized before attempting any sync operations
     if (!isCofheInitialized) {
-      console.log("⏸️ CoFHE not initialized yet, waiting...");
       setSyncStatus("loading");
       return;
     }
@@ -66,7 +62,6 @@ export function useGameStateValidator(
     // Check if CoFHE permit is available
     const permit = cofhejs?.getPermit();
     if (!permit?.data) {
-      console.log("⏸️ CoFHE permit not available yet, waiting...");
       setSyncStatus("loading");
       return;
     }
@@ -76,12 +71,6 @@ export function useGameStateValidator(
     setSyncStatus("loading");
 
     try {
-      console.log("🔍 Validating game state sync...", {
-        currentGameId,
-        address,
-        hasLocalState: !!gameState,
-        isGameStateSynced,
-      });
 
       // Fetch current on-chain state
       const { data: result } = (await refetchPlayerGameState({
@@ -99,12 +88,6 @@ export function useGameStateValidator(
         hasWon: Boolean(onChainHasWon),
       };
 
-      console.log("📊 On-chain state:", onChainState);
-      console.log("💾 Local state:", {
-        gameId: gameState?.gameId,
-        currentAttempt: gameState?.currentAttempt,
-        hasWon: gameState?.hasWon,
-      });
 
       // Check if local state matches on-chain state
       const isLocalStateSynced = 
@@ -114,22 +97,17 @@ export function useGameStateValidator(
         gameState.hasWon === onChainState.hasWon;
 
       if (isLocalStateSynced && isGameStateSynced) {
-        console.log("✅ Local state is synced with on-chain state");
         setSyncStatus("synced");
       } else {
-        console.log("🔄 Local state needs sync with on-chain state");
         setSyncStatus("needs-sync");
         
         // Trigger sync from contract
-        console.log("📥 Rebuilding game state from contract...");
         await syncGameStateFromContract();
         
-        console.log("✅ Game state rebuilt successfully");
         setSyncStatus("synced");
       }
 
     } catch (err) {
-      console.error("❌ Failed to validate game state:", err);
       setError(err instanceof Error ? err.message : "Unknown error occurred");
       setSyncStatus("error");
     } finally {
@@ -155,7 +133,6 @@ export function useGameStateValidator(
   // Handle sync state changes from other components
   useEffect(() => {
     if (isGameStateSynced && syncStatus !== "synced") {
-      console.log("🎯 Game state marked as synced externally");
       setSyncStatus("synced");
     }
   }, [isGameStateSynced, syncStatus]);
