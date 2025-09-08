@@ -7,7 +7,7 @@ import { useDecryptEquation } from "../hooks/useDecryptEquation";
 import { useGameSync } from "../hooks/useGameSync";
 import { useGuessSubmission } from "../hooks/useGuessSubmission";
 import { RulesModal } from "./RulesModal";
-import { VirtualKeyboard, KeyFeedback } from "./VirtualKeyboard";
+import { VirtualKeyboard, KeyFeedback, ProcessingStep } from "./VirtualKeyboard";
 
 type TileState = "empty" | "correct" | "present" | "absent";
 
@@ -60,6 +60,8 @@ export function NumberleGame({
     result: number;
     rowIndex: number;
   } | null>(null);
+  
+  const [processingStep, setProcessingStep] = useState<ProcessingStep>(null);
 
   // Component state
   const [currentInput, setCurrentInput] = useState("");
@@ -80,6 +82,7 @@ export function NumberleGame({
   // Handle transaction confirmation
   useEffect(() => {
     if (isConfirmed && pendingGuess && gameState) {
+      setProcessingStep("confirming");
       handleTransactionSuccess();
     }
   }, [isConfirmed, pendingGuess, gameState]);
@@ -89,6 +92,7 @@ export function NumberleGame({
     if (isTransactionFailed && pendingGuess) {
       console.log("Transaction failed, clearing pending guess to allow retry");
       setPendingGuess(null);
+      setProcessingStep(null);
       setWarningMessage("Transaction failed. Please try again.");
       setTimeout(() => setWarningMessage(""), 3000);
     }
@@ -99,6 +103,7 @@ export function NumberleGame({
     if (writeError && pendingGuess) {
       console.log("WriteContract error detected, clearing pending guess:", writeError.message);
       setPendingGuess(null);
+      setProcessingStep(null);
       // Error message is already set by the hook
     }
   }, [writeError, pendingGuess]);
@@ -108,6 +113,7 @@ export function NumberleGame({
     if (!isSubmitting && pendingGuess && !hash && submissionError) {
       console.log("Transaction submission failed, clearing pending guess");
       setPendingGuess(null);
+      setProcessingStep(null);
       // Don't override existing error message from submissionError
     }
   }, [isSubmitting, pendingGuess, hash, submissionError]);
@@ -128,6 +134,7 @@ export function NumberleGame({
         setCurrentInput("");
         setCurrentCol(0);
         setPendingGuess(null);
+        setProcessingStep(null);
         console.log("Input state cleared after game state update");
       }, 100);
     }
@@ -231,6 +238,7 @@ export function NumberleGame({
       rowIndex: gameState?.currentAttempt || 0,
     };
     setPendingGuess(pendingGuessData);
+    setProcessingStep("encrypting");
 
     // Submit using the hook with success and error callbacks
     const success = await submitGuessToContract(
@@ -238,13 +246,15 @@ export function NumberleGame({
       address,
       (data) => {
         console.log("Guess submitted successfully:", data);
+        setProcessingStep("submitting");
         // The hook will trigger writeContract, and transaction success will be handled in useEffect
       },
       (error) => {
         console.error("Failed to submit guess:", error);
         setWarningMessage(error);
         setTimeout(() => setWarningMessage(""), 3000);
-        setPendingGuess(null); // Clear pending guess on error
+        setPendingGuess(null);
+        setProcessingStep(null);
       }
     );
 
@@ -252,6 +262,7 @@ export function NumberleGame({
       setWarningMessage(submissionError);
       setTimeout(() => setWarningMessage(""), 3000);
       setPendingGuess(null);
+      setProcessingStep(null);
     }
   };
 
@@ -548,6 +559,7 @@ export function NumberleGame({
         isDisabled={isProcessingGuess}
         keyFeedback={getKeyboardFeedback()}
         isProcessingGuess={isProcessingGuess}
+        processingStep={processingStep}
         currentCol={currentCol}
         hasAtLeastOneOperation={hasAtLeastOneOperation}
         currentInput={currentInput}

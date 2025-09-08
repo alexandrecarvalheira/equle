@@ -3,12 +3,14 @@
 import React from "react";
 
 export type KeyFeedback = "correct" | "present" | "absent" | "empty";
+export type ProcessingStep = "encrypting" | "submitting" | "confirming" | null;
 
 interface VirtualKeyboardProps {
   onKeyPress: (key: string) => void;
   isDisabled: boolean;
   keyFeedback: Record<string, KeyFeedback>;
   isProcessingGuess?: boolean;
+  processingStep?: ProcessingStep;
   currentCol?: number;
   hasAtLeastOneOperation?: (input: string) => boolean;
   currentInput?: string;
@@ -19,6 +21,7 @@ export function VirtualKeyboard({
   isDisabled,
   keyFeedback,
   isProcessingGuess = false,
+  processingStep = null,
   currentCol = 0,
   hasAtLeastOneOperation,
   currentInput = "",
@@ -112,7 +115,12 @@ export function VirtualKeyboard({
           {isProcessingGuess ? (
             <div className="flex items-center justify-center gap-2">
               <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-              <span>Processing...</span>
+              <span>
+                {processingStep === "encrypting" && "Encrypting..."}
+                {processingStep === "submitting" && "Submitting..."}
+                {processingStep === "confirming" && "Confirming..."}
+                {!processingStep && "Processing..."}
+              </span>
             </div>
           ) : (
             <>
