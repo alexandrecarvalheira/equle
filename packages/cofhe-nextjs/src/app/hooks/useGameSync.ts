@@ -89,6 +89,7 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
   ];
 
   console.log("🔍 All attempt data from blockchain:", attemptDataArray);
+  console.log("🔄 All refetch functions:", attemptRefetchArray.map((fn, i) => `${i}: ${typeof fn}`));
 
   // CoFHE unsealing utility function
   const unsealValue = async (encryptedValue: bigint, fheType: FheTypes) => {
@@ -418,12 +419,27 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
 
     try {
       console.log("Transaction confirmed, processing feedback...");
+      console.log("Current game state:", {
+        gameId: currentGameState.gameId,
+        currentAttempt: currentGameState.currentAttempt,
+        guessesLength: currentGameState.guesses.length,
+        hasWon: currentGameState.hasWon
+      });
 
       // Get the last attempt number from current game state
       const lastAttemptIndex = currentGameState.currentAttempt;
       console.log(`📥 Getting XOR feedback for attempt ${lastAttemptIndex}...`);
+      console.log(`📊 attemptRefetchArray length: ${attemptRefetchArray.length}`);
+      
+      // Check if refetch function exists for this attempt index
+      if (!attemptRefetchArray[lastAttemptIndex]) {
+        console.error(`❌ No refetch function available for attempt ${lastAttemptIndex}`);
+        console.log("Available refetch functions:", attemptRefetchArray.length);
+        return false;
+      }
       
       // Refetch only the specific attempt data to get fresh XOR result
+      console.log(`🔄 Calling refetch for attempt ${lastAttemptIndex}...`);
       const refetchResult = await attemptRefetchArray[lastAttemptIndex]();
       const result = refetchResult.data as [bigint, bigint, bigint, bigint];
       

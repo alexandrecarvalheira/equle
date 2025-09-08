@@ -123,13 +123,23 @@ export function useDecryptEquation(address?: `0x${string}`) {
   const checkPlayerWinStatus = async (): Promise<void> => {
     if (!address || !gameState) return;
 
+    console.log("🔍 Checking player win status...");
+    console.log("Current local game state:", {
+      hasWon: gameState.hasWon,
+      isGameComplete: gameState.isGameComplete,
+      currentAttempt: gameState.currentAttempt
+    });
+
     try {
       const result = await refetchPlayerGameState();
       if (result.data) {
         const [, hasWon] = result.data as [bigint, boolean];
+        
+        console.log("🏆 On-chain win status:", hasWon);
+        console.log("🎯 Local win status:", gameState.hasWon);
 
         if (hasWon && !gameState.hasWon) {
-          console.log("Player has won on-chain, updating game state");
+          console.log("Player has won on-chain but not locally, updating game state");
 
           // Update the game state to reflect the win
           const updatedGameState = {
@@ -147,10 +157,26 @@ export function useDecryptEquation(address?: `0x${string}`) {
             setFinalizeMessage("");
             setIsFinalizingGame(false);
           }, 3000);
+        } else if (hasWon && gameState.hasWon) {
+          console.log("✅ Player has already won both on-chain and locally - no update needed");
+          
+          // Just show success message and finish finalization
+          setFinalizeMessage("🎉 Victory claimed successfully! 🎉");
+          setTimeout(() => {
+            setFinalizeMessage("");
+            setIsFinalizingGame(false);
+          }, 3000);
+        } else {
+          console.log("⚠️ On-chain status doesn't match expected win state");
         }
       }
     } catch (error) {
       console.error("Error checking player win status:", error);
+      setFinalizeMessage("Error updating win status");
+      setTimeout(() => {
+        setFinalizeMessage("");
+        setIsFinalizingGame(false);
+      }, 3000);
     }
   };
 
