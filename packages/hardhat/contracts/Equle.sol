@@ -39,7 +39,7 @@ contract Equle is Ownable {
     //STATE VARIABLES
 
     uint256 public immutable startTimestamp;
-    uint256 public constant HOUR = 1 hours;
+    uint256 public constant HOUR = 24 hours;
     uint256 public constant MAX_ATTEMPTS = 6;
     euint16 public ZERO;
     euint16 public ONE;
