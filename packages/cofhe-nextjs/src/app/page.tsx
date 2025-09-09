@@ -21,14 +21,9 @@ export default function Home() {
   const { address, isConnected } = useAccount();
   const { isInitialized: isCofheInitialized } = useCofheStore();
   const { gameId: currentGameId } = useCurrentGameId();
-  const { syncStatus, isValidating, error, validateAndSync } = useGameStateValidator(
-    address, 
-    currentGameId
-  );
+  const { syncStatus, isValidating, error, validateAndSync } =
+    useGameStateValidator(address, currentGameId);
   const [showFHE, setShowFHE] = useState(false);
-
-  console.log("isConnected", address);
-  console.log("syncStatus", syncStatus, "isValidating", isValidating);
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -75,16 +70,16 @@ export default function Home() {
                   </div>
                 </div>
               ) : syncStatus === "loading" || syncStatus === "needs-sync" ? (
-                <GameSyncLoading 
+                <GameSyncLoading
                   message={
-                    isValidating 
-                      ? "Rebuilding game progress..." 
+                    isValidating
+                      ? "Rebuilding game progress..."
                       : "Synchronizing with blockchain..."
-                  } 
+                  }
                 />
               ) : syncStatus === "error" ? (
-                <GameSyncError 
-                  error={error || "Failed to sync game state"} 
+                <GameSyncError
+                  error={error || "Failed to sync game state"}
                   onRetry={validateAndSync}
                 />
               ) : (
@@ -108,7 +103,7 @@ export default function Home() {
         </div>
       </div>
       <Footer />
-      
+
       {/* FHE Modal */}
       <FHEModal isOpen={showFHE} onClose={() => setShowFHE(false)} />
     </div>

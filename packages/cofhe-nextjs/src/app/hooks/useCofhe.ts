@@ -68,7 +68,6 @@ export function useCofhe(config?: Partial<CofheConfig>) {
 
   const chainId = publicClient?.chain.id;
   const accountAddress = walletClient?.account.address;
-  console.log("accountAddress", accountAddress);
 
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState<Error | null>(null);

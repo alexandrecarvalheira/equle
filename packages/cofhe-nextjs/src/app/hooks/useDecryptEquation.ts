@@ -67,11 +67,8 @@ export function useDecryptEquation(address?: `0x${string}`) {
         args: [],
       });
 
-      console.log("DecryptFinalizedEquation transaction initiated");
-
       // After transaction confirms, check player status will be handled by useEffect
     } catch (error) {
-      console.error("Error calling DecryptFinalizedEquation:", error);
       setFinalizeMessage("Error finalizing game. Please try again.");
       setTimeout(() => setFinalizeMessage(""), 5000);
       setIsFinalizingGame(false);
@@ -97,11 +94,8 @@ export function useDecryptEquation(address?: `0x${string}`) {
         args: [],
       });
 
-      console.log("Finalize game transaction initiated");
-
       // Wait for transaction confirmation, then start polling for decrypted equation
     } catch (error) {
-      console.error("Error finalizing game:", error);
       setFinalizeMessage("Error finalizing game. Please try again.");
       setTimeout(() => setFinalizeMessage(""), 5000);
       setIsFinalizingGame(false);
@@ -123,26 +117,12 @@ export function useDecryptEquation(address?: `0x${string}`) {
   const checkPlayerWinStatus = async (): Promise<void> => {
     if (!address || !gameState) return;
 
-    console.log("🔍 Checking player win status...");
-    console.log("Current local game state:", {
-      hasWon: gameState.hasWon,
-      isGameComplete: gameState.isGameComplete,
-      currentAttempt: gameState.currentAttempt,
-    });
-
     try {
       const result = await refetchPlayerGameState();
       if (result.data) {
         const [, hasWon] = result.data as [bigint, boolean];
 
-        console.log("🏆 On-chain win status:", hasWon);
-        console.log("🎯 Local win status:", gameState.hasWon);
-
         if (hasWon && !gameState.hasWon) {
-          console.log(
-            "Player has won on-chain but not locally, updating game state"
-          );
-
           // Update the game state to reflect the win
           const updatedGameState = {
             ...gameState,
@@ -160,10 +140,6 @@ export function useDecryptEquation(address?: `0x${string}`) {
             setIsFinalizingGame(false);
           }, 3000);
         } else if (hasWon && gameState.hasWon) {
-          console.log(
-            "✅ Player has already won both on-chain and locally - no update needed"
-          );
-
           // Just show success message and finish finalization
           setFinalizeMessage("🎉 Victory claimed successfully! 🎉");
           setTimeout(() => {
@@ -171,11 +147,9 @@ export function useDecryptEquation(address?: `0x${string}`) {
             setIsFinalizingGame(false);
           }, 3000);
         } else {
-          console.log("⚠️ On-chain status doesn't match expected win state");
         }
       }
     } catch (error) {
-      console.error("Error checking player win status:", error);
       setFinalizeMessage("Error updating win status");
       setTimeout(() => {
         setFinalizeMessage("");
@@ -187,27 +161,17 @@ export function useDecryptEquation(address?: `0x${string}`) {
   // Effect to handle finalize game transaction confirmation and refetch decrypted equation
   useEffect(() => {
     if (isConfirmed && isFinalizingGame) {
-      console.log(
-        "Finalize game transaction confirmed, starting to poll for decrypted equation"
-      );
       setFinalizeMessage("Waiting for equation decryption...");
 
       // Start polling for decrypted equation
       const pollDecryptedEquation = async () => {
         try {
-          console.log("Attempting to refetch decrypted equation...");
           const result = await refetchDecryptedEquation();
-          console.log("Refetch result:", result);
 
           if (result.error) {
-            console.log(
-              "Function reverted (equation not ready), will retry automatically"
-            );
             // The query will automatically retry due to retry: true
           }
-        } catch (error) {
-          console.error("Error during refetch:", error);
-        }
+        } catch (error) {}
       };
 
       pollDecryptedEquation();
@@ -221,19 +185,11 @@ export function useDecryptEquation(address?: `0x${string}`) {
       return;
     }
 
-    console.log("Decrypted equation state changed:", {
-      decryptedEquation,
-      error: decryptedEquationError,
-      isWonButNotFinalized: isWonButNotFinalized(),
-      isFinalizingGame,
-    });
-
     if (
       decryptedEquation &&
       decryptedEquation !== "0x" &&
       decryptedEquation !== "0x0000000000000000000000000000000000000000"
     ) {
-      console.log("✅ Successfully got decrypted equation:", decryptedEquation);
       setFinalizeMessage("Equation decrypted! Finalizing win status...");
 
       // Call DecryptFinalizedEquation to update hasWon status
@@ -247,8 +203,6 @@ export function useDecryptEquation(address?: `0x${string}`) {
       decryptedEquationError &&
       (isWonButNotFinalized() || isFinalizingGame)
     ) {
-      console.log("decryptedEquationError", decryptedEquationError);
-      console.log("❌ Equation not ready yet (function reverted), retrying...");
       setFinalizeMessage("Waiting for equation decryption...");
     }
   }, [
@@ -262,7 +216,6 @@ export function useDecryptEquation(address?: `0x${string}`) {
   // Effect to refetch player status after DecryptFinalizedEquation call
   useEffect(() => {
     if (isConfirmed && finalizeMessage.includes("Finalizing win status")) {
-      console.log("DecryptFinalizedEquation confirmed, checking player status");
       setFinalizeMessage("Updating win status...");
       // Check player status after a short delay
       setTimeout(() => {
@@ -274,9 +227,6 @@ export function useDecryptEquation(address?: `0x${string}`) {
   // Effect to check for decrypted equation when player first wins
   useEffect(() => {
     if (isWonButNotFinalized()) {
-      console.log(
-        "Player won! Checking if decrypted equation is already available..."
-      );
       refetchDecryptedEquation();
     }
   }, [isWonButNotFinalized(), refetchDecryptedEquation]);
@@ -286,21 +236,9 @@ export function useDecryptEquation(address?: `0x${string}`) {
     const checkDecryptedEquationOnLoad = async () => {
       // Only check if player has actually won but game is not finalized
       if (gameState && isWonButNotFinalized() && !decryptedEquation) {
-        console.log(
-          "Game state loaded, player won but not finalized - checking for decrypted equation..."
-        );
-        console.log(
-          "Current decryptedEquation before refetch:",
-          decryptedEquation
-        );
-
         try {
-          const result = await refetchDecryptedEquation();
-          console.log("Refetch result:", result);
-          console.log("decryptedEquation after refetch:", result.data);
-        } catch (error) {
-          console.log("Refetch failed (equation not ready):", error);
-        }
+          await refetchDecryptedEquation();
+        } catch (error) {}
       }
     };
 

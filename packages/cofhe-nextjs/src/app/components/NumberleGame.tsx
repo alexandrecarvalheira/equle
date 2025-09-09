@@ -7,7 +7,11 @@ import { useDecryptEquation } from "../hooks/useDecryptEquation";
 import { useGameSync } from "../hooks/useGameSync";
 import { useGuessSubmission } from "../hooks/useGuessSubmission";
 import { RulesModal } from "./RulesModal";
-import { VirtualKeyboard, KeyFeedback, ProcessingStep } from "./VirtualKeyboard";
+import {
+  VirtualKeyboard,
+  KeyFeedback,
+  ProcessingStep,
+} from "./VirtualKeyboard";
 
 type TileState = "empty" | "correct" | "present" | "absent";
 
@@ -35,9 +39,10 @@ export function NumberleGame({
     clearError,
     resetWriteError,
   } = useGuessSubmission();
-  const { isSuccess: isConfirmed, isError: isTransactionFailed } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const { isSuccess: isConfirmed, isError: isTransactionFailed } =
+    useWaitForTransactionReceipt({
+      hash,
+    });
 
   // Game state management
   const { gameState } = useGameStore();
@@ -60,7 +65,7 @@ export function NumberleGame({
     result: number;
     rowIndex: number;
   } | null>(null);
-  
+
   const [processingStep, setProcessingStep] = useState<ProcessingStep>(null);
 
   // Component state
@@ -90,7 +95,6 @@ export function NumberleGame({
   // Handle transaction failure - clear pending guess to allow retry
   useEffect(() => {
     if (isTransactionFailed && pendingGuess) {
-      console.log("Transaction failed, clearing pending guess to allow retry");
       setPendingGuess(null);
       setProcessingStep(null);
       setWarningMessage("Transaction failed. Please try again.");
@@ -101,7 +105,6 @@ export function NumberleGame({
   // Handle writeContract errors (user cancellation, etc.)
   useEffect(() => {
     if (writeError && pendingGuess) {
-      console.log("WriteContract error detected, clearing pending guess:", writeError.message);
       setPendingGuess(null);
       setProcessingStep(null);
       // Error message is already set by the hook
@@ -111,7 +114,6 @@ export function NumberleGame({
   // Handle submission errors - fallback for other error cases
   useEffect(() => {
     if (!isSubmitting && pendingGuess && !hash && submissionError) {
-      console.log("Transaction submission failed, clearing pending guess");
       setPendingGuess(null);
       setProcessingStep(null);
       // Don't override existing error message from submissionError
@@ -121,27 +123,26 @@ export function NumberleGame({
   const handleTransactionSuccess = async () => {
     if (!pendingGuess) return;
 
-    console.log("Processing transaction success...");
-    const success = await processTransactionSuccess(pendingGuess, gameState);
+    const success = await processTransactionSuccess(pendingGuess, gameState!);
 
     if (success) {
-      console.log(
-        "Transaction processed successfully, game state should be updated"
-      );
-
       // Reset input state for next guess after a short delay to ensure game state is updated
       setTimeout(() => {
         setCurrentInput("");
         setCurrentCol(0);
         setPendingGuess(null);
         setProcessingStep(null);
-        console.log("Input state cleared after game state update");
       }, 100);
     }
   };
 
   const handleKeyPress = (key: string) => {
-    if (gameState?.isGameComplete || shouldShowFinalizeButton || isProcessingGuess) return;
+    if (
+      gameState?.isGameComplete ||
+      shouldShowFinalizeButton ||
+      isProcessingGuess
+    )
+      return;
 
     if (key === "Enter") {
       submitGuess();
@@ -281,7 +282,7 @@ export function NumberleGame({
 
   const getKeyboardFeedback = (): Record<string, KeyFeedback> => {
     const feedback: Record<string, KeyFeedback> = {};
-    
+
     // If no game state or guesses, return empty feedback
     if (!gameState?.guesses) {
       return feedback;
@@ -383,8 +384,10 @@ export function NumberleGame({
       const guess = gameState.guesses[rowIndex];
       let feedbackText = "";
       if (guess.resultFeedback === "equal") feedbackText = " (Correct!)";
-      else if (guess.resultFeedback === "less") feedbackText = " (Too low - aim higher!)";
-      else if (guess.resultFeedback === "greater") feedbackText = " (Too high - aim lower!)";
+      else if (guess.resultFeedback === "less")
+        feedbackText = " (Too low - aim higher!)";
+      else if (guess.resultFeedback === "greater")
+        feedbackText = " (Too high - aim lower!)";
 
       return `Result: ${guess.result}${feedbackText}`;
     }
@@ -404,7 +407,6 @@ export function NumberleGame({
 
     return "Result will appear here";
   };
-
 
   // Keyboard handler effect
   useEffect(() => {
