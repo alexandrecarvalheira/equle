@@ -16,7 +16,7 @@ interface VirtualKeyboardProps {
   currentInput?: string;
 }
 
-export function VirtualKeyboard({
+export const VirtualKeyboard = React.memo(function VirtualKeyboard({
   onKeyPress,
   isDisabled,
   keyFeedback,
@@ -142,4 +142,4 @@ export function VirtualKeyboard({
       </div>
     </div>
   );
-}
+});
