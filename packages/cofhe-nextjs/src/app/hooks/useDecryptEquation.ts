@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   useReadContract,
   useWriteContract,
@@ -31,27 +31,32 @@ export function useDecryptEquation(address?: `0x${string}`) {
     account: address,
   });
 
-  // Check if decrypted equation is already available (0n means finalized, ready to claim)
-  const hasDecryptedEquation = (): boolean => {
-    return decryptedEquation !== undefined && decryptedEquation !== null;
-  };
+  // Derived booleans to avoid calling functions in dependency arrays
+  const hasDecrypted = useMemo(() => {
+    return (
+      decryptedEquation !== undefined &&
+      decryptedEquation !== null &&
+      decryptedEquation !== "0x" &&
+      decryptedEquation !== "0x0000000000000000000000000000000000000000"
+    );
+  }, [decryptedEquation]);
 
   // Check if the last guess is all correct (all green)
-  const isLastGuessAllCorrect = (): boolean => {
+  const lastGuessAllCorrect = useMemo(() => {
     if (!gameState?.guesses || gameState.guesses.length === 0) return false;
     const lastGuess = gameState.guesses[gameState.guesses.length - 1];
     return lastGuess.feedback.every((feedback) => feedback === "correct");
-  };
+  }, [gameState?.guesses]);
 
   // Check if game is won but not finalized yet
-  const isWonButNotFinalized = (): boolean => {
-    return isLastGuessAllCorrect() && !gameState?.hasWon;
-  };
+  const wonButNotFinalized = useMemo(() => {
+    return lastGuessAllCorrect && !gameState?.hasWon;
+  }, [lastGuessAllCorrect, gameState?.hasWon]);
 
   // Check if game is already won and we need to claim victory
-  const isWonAndNeedsVictoryClaim = (): boolean => {
-    return !!(gameState?.hasWon && !hasDecryptedEquation());
-  };
+  const wonNeedsVictoryClaim = useMemo(() => {
+    return !!(gameState?.hasWon && !hasDecrypted);
+  }, [gameState?.hasWon, hasDecrypted]);
 
   // Call DecryptFinalizedEquation when equation is already decrypted
   const decryptFinalizedEquation = async () => {
@@ -181,7 +186,7 @@ export function useDecryptEquation(address?: `0x${string}`) {
   // Effect to handle when decrypted equation is received - ONLY when player has won
   useEffect(() => {
     // Only process decrypted equation if player has actually won
-    if (!isWonButNotFinalized() && !isFinalizingGame) {
+    if (!wonButNotFinalized && !isFinalizingGame) {
       return;
     }
 
@@ -199,16 +204,13 @@ export function useDecryptEquation(address?: `0x${string}`) {
         functionName: "DecryptfinalizedEquation",
         args: [],
       });
-    } else if (
-      decryptedEquationError &&
-      (isWonButNotFinalized() || isFinalizingGame)
-    ) {
+    } else if (decryptedEquationError && (wonButNotFinalized || isFinalizingGame)) {
       setFinalizeMessage("Waiting for equation decryption...");
     }
   }, [
     decryptedEquation,
     decryptedEquationError,
-    isWonButNotFinalized(),
+    wonButNotFinalized,
     isFinalizingGame,
     writeContract,
   ]);
@@ -226,24 +228,22 @@ export function useDecryptEquation(address?: `0x${string}`) {
 
   // Effect to check for decrypted equation when player first wins
   useEffect(() => {
-    if (isWonButNotFinalized()) {
+    if (wonButNotFinalized) {
       refetchDecryptedEquation();
     }
-  }, [isWonButNotFinalized(), refetchDecryptedEquation]);
+  }, [wonButNotFinalized, refetchDecryptedEquation]);
 
   // Effect to check for decrypted equation on component mount/game state load - ONLY when player has won
   useEffect(() => {
     const checkDecryptedEquationOnLoad = async () => {
-      // Only check if player has actually won but game is not finalized
-      if (gameState && isWonButNotFinalized() && !decryptedEquation) {
+      if (gameState && wonButNotFinalized && !decryptedEquation) {
         try {
           await refetchDecryptedEquation();
         } catch (error) {}
       }
     };
-
     checkDecryptedEquationOnLoad();
-  }, [gameState, refetchDecryptedEquation, decryptedEquation]);
+  }, [gameState, wonButNotFinalized, refetchDecryptedEquation, decryptedEquation]);
 
   return {
     // State
@@ -254,12 +254,12 @@ export function useDecryptEquation(address?: `0x${string}`) {
     // Functions
     finalizeGame,
     decryptFinalizedEquation,
-    hasDecryptedEquation,
-    isWonButNotFinalized,
+    hasDecryptedEquation: () => hasDecrypted,
+    isWonButNotFinalized: () => wonButNotFinalized,
     refetchDecryptedEquation,
 
     // Computed values
     shouldShowFinalizeButton:
-      isWonButNotFinalized() || isWonAndNeedsVictoryClaim(),
+      wonButNotFinalized || wonNeedsVictoryClaim,
   };
 }
