@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAccount, useWaitForTransactionReceipt } from "wagmi";
 import { useGameStore } from "../store/gameStore";
 import { useDecryptEquation } from "../hooks/useDecryptEquation";
@@ -38,6 +38,7 @@ export function NumberleGame({
     writeError,
     clearError,
     resetWriteError,
+    calculateResult,
   } = useGuessSubmission();
   const { isSuccess: isConfirmed, isError: isTransactionFailed } =
     useWaitForTransactionReceipt({
@@ -45,7 +46,7 @@ export function NumberleGame({
     });
 
   // Game state management
-  const { gameState } = useGameStore();
+  const gameState = useGameStore((s) => s.gameState);
 
   // Game synchronization hook - only need processTransactionSuccess for handling completed transactions
   const { processTransactionSuccess } = useGameSync(address, propGameId);
@@ -136,79 +137,43 @@ export function NumberleGame({
     }
   };
 
-  const handleKeyPress = (key: string) => {
-    if (
-      gameState?.isGameComplete ||
-      shouldShowFinalizeButton ||
-      isProcessingGuess
-    )
-      return;
-
-    if (key === "Enter") {
-      submitGuess();
-    } else if (key === "Backspace") {
-      if (currentCol > 0) {
-        setCurrentInput((prev) => prev.slice(0, -1));
-        setCurrentCol(currentCol - 1);
-      }
-    } else if (isValidInput(key) && currentCol < EQUATION_LENGTH) {
-      setCurrentInput((prev) => prev + key);
-      setCurrentCol(currentCol + 1);
-    }
-  };
+  // removed duplicate handleKeyPress; replaced with memoized version below
 
   const isValidInput = (key: string): boolean => {
     return /^[0-9+\-*/]$/.test(key);
   };
 
-  // Use calculateResult from the hook for consistency
-  const { calculateResult } = useGuessSubmission();
 
   // Create display board from gameState + current input
-  const getDisplayBoard = (): Tile[][] => {
-    const displayBoard: Tile[][] = [];
+  const displayBoard = useMemo((): Tile[][] => {
+    const board: Tile[][] = [];
 
-    // Fill completed rows from gameState
     if (gameState?.guesses) {
       for (let i = 0; i < gameState.guesses.length; i++) {
         const guess = gameState.guesses[i];
         const row: Tile[] = [];
-
         for (let j = 0; j < EQUATION_LENGTH; j++) {
-          row.push({
-            value: guess.equation[j] || "",
-            state: guess.feedback[j] || "empty",
-          });
+          row.push({ value: guess.equation[j] || "", state: guess.feedback[j] || "empty" });
         }
-        displayBoard.push(row);
+        board.push(row);
       }
     }
 
-    // Add current input row
-    if (displayBoard.length < MAX_ATTEMPTS && !gameState?.isGameComplete) {
+    if (board.length < MAX_ATTEMPTS && !gameState?.isGameComplete) {
       const currentRowData: Tile[] = [];
-      const currentGuess = currentInput;
-
       for (let j = 0; j < EQUATION_LENGTH; j++) {
-        currentRowData.push({
-          value: currentGuess[j] || "",
-          state: "empty",
-        });
+        currentRowData.push({ value: currentInput[j] || "", state: "empty" });
       }
-      displayBoard.push(currentRowData);
+      board.push(currentRowData);
     }
 
-    // Fill remaining empty rows
-    while (displayBoard.length < MAX_ATTEMPTS) {
-      const emptyRow: Tile[] = Array(EQUATION_LENGTH).fill({
-        value: "",
-        state: "empty",
-      });
-      displayBoard.push(emptyRow);
+    while (board.length < MAX_ATTEMPTS) {
+      const emptyRow: Tile[] = Array(EQUATION_LENGTH).fill({ value: "", state: "empty" });
+      board.push(emptyRow);
     }
 
-    return displayBoard;
-  };
+    return board;
+  }, [gameState?.guesses, gameState?.isGameComplete, currentInput]);
 
   const submitGuess = async () => {
     if (currentCol !== EQUATION_LENGTH) return;
@@ -280,27 +245,16 @@ export function NumberleGame({
     }
   };
 
-  const getKeyboardFeedback = (): Record<string, KeyFeedback> => {
+  const keyboardFeedback = useMemo((): Record<string, KeyFeedback> => {
     const feedback: Record<string, KeyFeedback> = {};
-
-    // If no game state or guesses, return empty feedback
-    if (!gameState?.guesses) {
-      return feedback;
-    }
-
-    // Analyze all guesses to determine the best feedback for each character
+    if (!gameState?.guesses) return feedback;
     gameState.guesses.forEach((guess) => {
       const equation = guess.equation;
       const guessFeedback = guess.feedback;
-
       for (let i = 0; i < equation.length && i < guessFeedback.length; i++) {
         const char = equation[i];
         const charFeedback = guessFeedback[i] as KeyFeedback;
-
-        // Skip if current feedback is empty or character is empty
         if (!char || charFeedback === "empty") continue;
-
-        // Determine the best feedback (priority: correct > present > absent > empty)
         const currentFeedback = feedback[char] || "empty";
         if (
           charFeedback === "correct" ||
@@ -311,9 +265,8 @@ export function NumberleGame({
         }
       }
     });
-
     return feedback;
-  };
+  }, [gameState?.guesses]);
 
   const getResultTileStyle = (rowIndex: number): string => {
     const baseStyle =
@@ -408,17 +361,34 @@ export function NumberleGame({
     return "Result will appear here";
   };
 
+  const handleKeyPress = useCallback(
+    (key: string) => {
+      if (gameState?.isGameComplete || shouldShowFinalizeButton || isProcessingGuess) return;
+      if (key === "Enter") {
+        submitGuess();
+      } else if (key === "Backspace") {
+        if (currentCol > 0) {
+          setCurrentInput((prev) => prev.slice(0, -1));
+          setCurrentCol((prev) => prev - 1);
+        }
+      } else if (isValidInput(key) && currentCol < EQUATION_LENGTH) {
+        setCurrentInput((prev) => prev + key);
+        setCurrentCol((prev) => prev + 1);
+      }
+    },
+    [gameState?.isGameComplete, shouldShowFinalizeButton, isProcessingGuess, currentCol]
+  );
+
   // Keyboard handler effect
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       handleKeyPress(event.key);
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [currentCol, gameState?.isGameComplete]);
+  }, [handleKeyPress]);
 
   return (
     <div
@@ -489,7 +459,7 @@ export function NumberleGame({
       {/* Game Board */}
       <div className="flex justify-center mb-6 relative z-10">
         <div className="grid gap-2">
-          {getDisplayBoard().map((row, rowIndex) => (
+          {displayBoard.map((row, rowIndex) => (
             <div key={rowIndex} className="flex gap-2 items-center">
               <div className="grid grid-cols-5 gap-2">
                 {row.map((tile, colIndex) => (
@@ -559,7 +529,7 @@ export function NumberleGame({
       <VirtualKeyboard
         onKeyPress={handleKeyPress}
         isDisabled={isProcessingGuess}
-        keyFeedback={getKeyboardFeedback()}
+        keyFeedback={keyboardFeedback}
         isProcessingGuess={isProcessingGuess}
         processingStep={processingStep}
         currentCol={currentCol}

@@ -7,6 +7,7 @@
     "dev:nextjs": "cd packages/cofhe-nextjs && npm run dev",
     "build:nextjs": "cd packages/cofhe-nextjs && npm run build",
     "start:nextjs": "cd packages/cofhe-nextjs && npm run start",
+    "test:e2e": "cd packages/cofhe-nextjs && npm run test:e2e",
     "build:foundry": "cd packages/foundry && forge build",
     "test:foundry": "cd packages/foundry && forge test",
     "clean": "rm -rf node_modules && cd packages/cofhe-nextjs && rm -rf node_modules && cd ../foundry && rm -rf node_modules",
