@@ -26,14 +26,19 @@ task("setgame-equle", "Set game on the deployed contract").setAction(
     // Get the signer
     const [signer] = await ethers.getSigners();
     console.log(`Using account: ${signer.address}`);
-    await cofhejs_initializeWithHardhatSigner(hre, signer);
+    await cofhejs.initializeWithEthers({
+      ethersProvider: ethers.provider,
+      ethersSigner: signer,
+      environment: "TESTNET",
+    });
     console.log("Cofhe initialized");
 
-    // Get the contract instance with proper typing
     const Equle = await ethers.getContractFactory("Equle");
     const equle = Equle.attach(equleAddress) as unknown as Equle;
 
     const gameId = await equle.getCurrentGameId();
+    const gameState = await equle.getPlayerAttempt(gameId, signer.address, 0);
+    console.log("Game state:", gameState);
     const equation = "1+2*3";
     const result = 9; //
 

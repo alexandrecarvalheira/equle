@@ -53,10 +53,16 @@ const clashDisplay = localFont({
   display: "swap",
 });
 
+const visitor1 = localFont({
+  src: "./fonts/visitor1.ttf",
+  variable: "--font-visitor1",
+  display: "swap",
+});
+
 export async function generateMetadata(): Promise<Metadata> {
   const URL = process.env.NEXT_PUBLIC_URL as string;
   return {
-    title: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
+    title: "Equle* - powered by Fhenix",
     description: "Find the exact mathematical expression!",
     other: {
       "fc:frame": JSON.stringify({
@@ -86,7 +92,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${clashDisplay.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${clashDisplay.variable} ${visitor1.variable} antialiased`}
       >
         <Providers>{children}</Providers>
       </body>

@@ -39,7 +39,7 @@ contract Equle is Ownable {
     //STATE VARIABLES
 
     uint256 public immutable startTimestamp;
-    uint256 public constant DAY = 1 days;
+    uint256 public constant HOUR = 24 hours;
     uint256 public constant MAX_ATTEMPTS = 6;
     euint16 public ZERO;
     euint16 public ONE;
@@ -203,11 +203,31 @@ contract Equle is Ownable {
         emit GameFinalized(msg.sender, gameId, lastAttempt);
     }
 
+        function getDecryptedfinalizedEquation() public view returns (uint128) {
+        uint256 gameId = getCurrentGameId();
+        
+        if (playerStates[gameId][msg.sender].currentAttempt == 0) {
+            revert NoAttemptsYet(msg.sender, gameId);
+        }
+
+        uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
+
+        // Get the last attempt's XOR result
+        euint128 lastEquationXor = attemptData[gameId][msg.sender][lastAttempt].equationXor;
+
+        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(lastEquationXor);
+        if (!decrypted) {
+            revert DecryptionNotReady(msg.sender, gameId);
+        }
+
+        return value;
+    }
+
     /**
      * @notice Retrieves the decrypted equation XOR result and determines if player won
      * @dev Checks if the lower 20 bits of the XOR result equal zero (indicating perfect match)
      */
-    function getDecryptedfinalizedEquation() public {
+    function DecryptfinalizedEquation() public {
         uint256 gameId = getCurrentGameId();
         
         if (playerStates[gameId][msg.sender].currentAttempt == 0) {
@@ -300,7 +320,7 @@ contract Equle is Ownable {
     }
 
     function getCurrentGameId() public view returns (uint256) {
-        return ((block.timestamp - startTimestamp) / DAY) + 1;
+        return ((block.timestamp - startTimestamp) / HOUR) + 1;
     }
     
 }

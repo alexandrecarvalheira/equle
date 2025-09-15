@@ -11,6 +11,7 @@
   --font-sans: var(--font-clash-display);
   --font-mono: var(--font-geist-mono);
   --font-clash: var(--font-clash-display);
+  --font-visitor1: var(--font-visitor1);
 }
 
 body {
@@ -23,11 +24,14 @@ body {
   font-family: var(--font-clash-display), Arial, Helvetica, sans-serif;
 }
 
+.font-visitor1 {
+  font-family: var(--font-visitor1), monospace;
+}
+
 .bg-cyan-custom {
-  background-color: #0AD9DC;
+  background-color: #0ad9dc;
 }
 
 .bg-cyan-custom:hover {
-  background-color: #08B8BB;
+  background-color: #08b8bb;
 }
-
