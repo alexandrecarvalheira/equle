@@ -10,7 +10,7 @@ import { DisconnectedScreen } from "./components/DisconnectedScreen";
 import { MonitorFrame } from "./components/MonitorFrame";
 import { Footer } from "./components/Footer";
 import { useAccount } from "wagmi";
-import { UserInfo } from "./components/Userinfo";
+import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { Navbar } from "./components/Navbar";
 import { useCofheStore } from "./store/cofheStore";
 import { useCurrentGameId } from "./hooks/useCurrentGameId";
@@ -19,15 +19,23 @@ import { GameSyncLoading } from "./components/GameSyncLoading";
 import { GameSyncError } from "./components/GameSyncError";
 import { VirtualKeyboardSkeleton } from "./components/VirtualKeyboardSkeleton";
 import { FHEModal } from "./components/FHEModal";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function Home() {
+  const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { address, isConnected } = useAccount();
   const { isInitialized: isCofheInitialized } = useCofheStore();
   const { gameId: currentGameId } = useCurrentGameId();
   const { syncStatus, isValidating, error, validateAndSync } =
     useGameStateValidator(address, currentGameId);
   const [showFHE, setShowFHE] = useState(false);
+
+  useEffect(() => {
+    if (!isFrameReady) {
+      setFrameReady();
+    }
+  }, [isFrameReady, setFrameReady]);
+
   return (
     <div
       className="min-h-screen flex flex-col"
