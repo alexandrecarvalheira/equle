@@ -17,7 +17,7 @@ export function CofheStatus() {
 
   return (
     <div
-      className="flex items-center gap-2 px-3 py-2 rounded-lg hidden"
+      className="flex items-center gap-2 px-3 py-2 rounded-lg"
       style={{ backgroundColor: "#1a3344" }}
     >
       {isInitializing ? (
