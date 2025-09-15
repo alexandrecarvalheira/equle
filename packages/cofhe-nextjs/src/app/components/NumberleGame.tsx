@@ -1,6 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAccount, useWaitForTransactionReceipt } from "wagmi";
+import { useGameStore } from "../store/gameStore";
+import { useDecryptEquation } from "../hooks/useDecryptEquation";
+import { useGameSync } from "../hooks/useGameSync";
+import { useGuessSubmission } from "../hooks/useGuessSubmission";
+import { RulesModal } from "./RulesModal";
+import {
+  VirtualKeyboard,
+  KeyFeedback,
+  ProcessingStep,
+} from "./VirtualKeyboard";
 
 type TileState = "empty" | "correct" | "present" | "absent";
 
@@ -12,149 +23,136 @@ interface Tile {
 const EQUATION_LENGTH = 5;
 const MAX_ATTEMPTS = 6;
 
-const EQUATION_POOL = [
-  { equation: "8*6-2", result: 46 },
-  { equation: "4+3*5", result: 35 },
-  { equation: "9/3+7", result: 10 },
-  { equation: "2*8-1", result: 15 },
-  { equation: "6+4*2", result: 20 },
-  { equation: "30/15", result: 2 },
-  { equation: "7*2+3", result: 17 },
-  { equation: "32-12", result: 20 },
-  { equation: "5*4-8", result: 12 },
-  { equation: "89-43", result: 46 },
-  { equation: "247+9", result: 256 },
-  { equation: "873*1", result: 873 },
-];
+export function NumberleGame({
+  gameId: propGameId,
+}: {
+  gameId: number | null;
+}) {
+  // Contract and wallet integration
+  const { address, isConnected } = useAccount();
+  const {
+    submitGuess: submitGuessToContract,
+    isSubmitting,
+    submissionError,
+    hash,
+    writeError,
+    clearError,
+    resetWriteError,
+  } = useGuessSubmission();
+  const { isSuccess: isConfirmed, isError: isTransactionFailed } =
+    useWaitForTransactionReceipt({
+      hash,
+    });
 
-const getRandomEquation = () => {
-  const randomIndex = Math.floor(Math.random() * EQUATION_POOL.length);
-  return EQUATION_POOL[randomIndex];
-};
+  // Game state management
+  const { gameState } = useGameStore();
 
-const initializeBoard = (): Tile[][] => {
-  const newBoard: Tile[][] = [];
-  for (let i = 0; i < MAX_ATTEMPTS; i++) {
-    const row: Tile[] = [];
-    for (let j = 0; j < EQUATION_LENGTH; j++) {
-      row.push({ value: "", state: "empty" });
-    }
-    newBoard.push(row);
-  }
-  return newBoard;
-};
+  // Game synchronization hook - only need processTransactionSuccess for handling completed transactions
+  const { processTransactionSuccess } = useGameSync(address, propGameId);
 
-export function NumberleGame() {
-  const [board, setBoard] = useState<Tile[][]>(() => initializeBoard());
-  const [currentRow, setCurrentRow] = useState(0);
+  // Decryption hook for finalize game functionality
+  const {
+    isFinalizingGame,
+    finalizeMessage,
+    finalizeGame,
+    decryptFinalizedEquation,
+    hasDecryptedEquation,
+    shouldShowFinalizeButton,
+  } = useDecryptEquation(address);
+
+  const [pendingGuess, setPendingGuess] = useState<{
+    equation: string;
+    result: number;
+    rowIndex: number;
+  } | null>(null);
+
+  const [processingStep, setProcessingStep] = useState<ProcessingStep>(null);
+
+  // Component state
+  const [currentInput, setCurrentInput] = useState("");
   const [currentCol, setCurrentCol] = useState(0);
-  const [gameStatus, setGameStatus] = useState<"playing" | "won" | "lost">(
-    "playing"
-  );
   const [showRules, setShowRules] = useState(false);
-  const [currentEquationData, setCurrentEquationData] = useState(() =>
-    getRandomEquation()
-  );
-  const [rowResults, setRowResults] = useState<(number | null)[]>(
-    new Array(MAX_ATTEMPTS).fill(null)
-  );
-  const [keyboardStatus, setKeyboardStatus] = useState<
-    Record<string, TileState>
-  >({});
   const [hoveredResultTile, setHoveredResultTile] = useState<number | null>(
     null
   );
   const [warningMessage, setWarningMessage] = useState<string>("");
 
+  // Compute processing state - true when submitting OR waiting for transaction confirmation
+  const isProcessingGuess = isSubmitting || !!pendingGuess;
+
   const hasAtLeastOneOperation = (expression: string): boolean => {
     return /[+\-*/]/.test(expression);
   };
 
-  const isValidExpression = (expression: string): boolean => {
-    if (expression.length !== EQUATION_LENGTH) return false;
-    if (expression.includes("=")) return false;
-    if (!hasAtLeastOneOperation(expression)) return false;
-
-    // Check if first or last character is an operation
-    if (
-      /[+\-*/]/.test(expression[0]) ||
-      /[+\-*/]/.test(expression[expression.length - 1])
-    ) {
-      return false;
+  // Handle transaction confirmation
+  useEffect(() => {
+    if (isConfirmed && pendingGuess && gameState) {
+      setProcessingStep("confirming");
+      handleTransactionSuccess();
     }
+  }, [isConfirmed, pendingGuess, gameState]);
 
-    try {
-      // Check if it's a valid mathematical expression using left-to-right evaluation
-      const result = evaluateExpression(expression);
-      return typeof result === "number" && !isNaN(result);
-    } catch {
-      return false;
+  // Handle transaction failure - clear pending guess to allow retry
+  useEffect(() => {
+    if (isTransactionFailed && pendingGuess) {
+      setPendingGuess(null);
+      setProcessingStep(null);
+      setWarningMessage("Transaction failed. Please try again.");
+      setTimeout(() => setWarningMessage(""), 3000);
     }
-  };
+  }, [isTransactionFailed, pendingGuess]);
 
-  const evaluateExpression = (expression: string): number => {
-    try {
-      // Clean the expression
-      const cleanExpression = expression.replace(/[^0-9+\-*/()]/g, "");
+  // Handle writeContract errors (user cancellation, etc.)
+  useEffect(() => {
+    if (writeError && pendingGuess) {
+      setPendingGuess(null);
+      setProcessingStep(null);
+      // Error message is already set by the hook
+    }
+  }, [writeError, pendingGuess]);
 
-      // Parse and evaluate left-to-right
-      let result = 0;
-      let currentNumber = 0;
-      let operator = "+";
+  // Handle submission errors - fallback for other error cases
+  useEffect(() => {
+    if (!isSubmitting && pendingGuess && !hash && submissionError) {
+      setPendingGuess(null);
+      setProcessingStep(null);
+      // Don't override existing error message from submissionError
+    }
+  }, [isSubmitting, pendingGuess, hash, submissionError]);
 
-      for (let i = 0; i < cleanExpression.length; i++) {
-        const char = cleanExpression[i];
+  const handleTransactionSuccess = async () => {
+    if (!pendingGuess) return;
 
-        if (!isNaN(Number(char))) {
-          currentNumber = currentNumber * 10 + Number(char);
-        }
+    const success = await processTransactionSuccess(pendingGuess, gameState!);
 
-        if (
-          ["+", "-", "*", "/"].includes(char) ||
-          i === cleanExpression.length - 1
-        ) {
-          switch (operator) {
-            case "+":
-              result = result + currentNumber;
-              break;
-            case "-":
-              result = result - currentNumber;
-              break;
-            case "*":
-              result = result * currentNumber;
-              break;
-            case "/":
-              result = result / currentNumber;
-              break;
-          }
-
-          operator = char;
-          currentNumber = 0;
-        }
-      }
-
-      return result;
-    } catch {
-      return NaN;
+    if (success) {
+      // Reset input state for next guess after a short delay to ensure game state is updated
+      setTimeout(() => {
+        setCurrentInput("");
+        setCurrentCol(0);
+        setPendingGuess(null);
+        setProcessingStep(null);
+      }, 100);
     }
   };
 
   const handleKeyPress = (key: string) => {
-    if (gameStatus !== "playing") return;
+    if (
+      gameState?.isGameComplete ||
+      shouldShowFinalizeButton ||
+      isProcessingGuess
+    )
+      return;
 
     if (key === "Enter") {
       submitGuess();
     } else if (key === "Backspace") {
       if (currentCol > 0) {
-        const newBoard = [...board];
-        newBoard[currentRow][currentCol - 1] = { value: "", state: "empty" };
-        setBoard(newBoard);
+        setCurrentInput((prev) => prev.slice(0, -1));
         setCurrentCol(currentCol - 1);
       }
     } else if (isValidInput(key) && currentCol < EQUATION_LENGTH) {
-      const newBoard = [...board];
-      newBoard[currentRow][currentCol] = { value: key, state: "empty" };
-      setBoard(newBoard);
+      setCurrentInput((prev) => prev + key);
       setCurrentCol(currentCol + 1);
     }
   };
@@ -163,93 +161,110 @@ export function NumberleGame() {
     return /^[0-9+\-*/]$/.test(key);
   };
 
-  const submitGuess = () => {
-    if (currentCol !== EQUATION_LENGTH) return;
+  // Use calculateResult from the hook for consistency
+  const { calculateResult } = useGuessSubmission();
 
-    const currentGuess = board[currentRow]
-      .map((tile: Tile) => tile.value)
-      .join("");
+  // Create display board from gameState + current input
+  const getDisplayBoard = (): Tile[][] => {
+    const displayBoard: Tile[][] = [];
 
-    if (!isValidExpression(currentGuess)) {
-      if (!hasAtLeastOneOperation(currentGuess)) {
-        setWarningMessage("Please include at least one operation (+, -, *, /)");
-      } else {
-        setWarningMessage("Please enter a valid mathematical expression");
+    // Fill completed rows from gameState
+    if (gameState?.guesses) {
+      for (let i = 0; i < gameState.guesses.length; i++) {
+        const guess = gameState.guesses[i];
+        const row: Tile[] = [];
+
+        for (let j = 0; j < EQUATION_LENGTH; j++) {
+          row.push({
+            value: guess.equation[j] || "",
+            state: guess.feedback[j] || "empty",
+          });
+        }
+        displayBoard.push(row);
       }
+    }
+
+    // Add current input row
+    if (displayBoard.length < MAX_ATTEMPTS && !gameState?.isGameComplete) {
+      const currentRowData: Tile[] = [];
+      const currentGuess = currentInput;
+
+      for (let j = 0; j < EQUATION_LENGTH; j++) {
+        currentRowData.push({
+          value: currentGuess[j] || "",
+          state: "empty",
+        });
+      }
+      displayBoard.push(currentRowData);
+    }
+
+    // Fill remaining empty rows
+    while (displayBoard.length < MAX_ATTEMPTS) {
+      const emptyRow: Tile[] = Array(EQUATION_LENGTH).fill({
+        value: "",
+        state: "empty",
+      });
+      displayBoard.push(emptyRow);
+    }
+
+    return displayBoard;
+  };
+
+  const submitGuess = async () => {
+    if (currentCol !== EQUATION_LENGTH) return;
+    if (!address || !isConnected) return;
+    if (gameState?.isGameComplete || shouldShowFinalizeButton) return;
+    if (isProcessingGuess) return;
+
+    const currentGuess = currentInput;
+
+    // Basic validation - detailed validation is in the hook
+    if (!hasAtLeastOneOperation(currentGuess)) {
+      setWarningMessage("Please include at least one operation (+, -, *, /)");
       setTimeout(() => setWarningMessage(""), 3000);
       return;
     }
 
+    // Clear any previous errors
+    clearError();
+    resetWriteError();
     setWarningMessage("");
 
-    const guessResult = evaluateExpression(currentGuess);
-    const newBoard = [...board];
+    const playerResult = calculateResult(currentGuess);
 
-    // Provide Wordle-style feedback: exact position match vs presence
-    for (let i = 0; i < EQUATION_LENGTH; i++) {
-      const guessChar = currentGuess[i];
-      const targetChar = currentEquationData.equation[i];
+    // Store pending guess for transaction success handling
+    const pendingGuessData = {
+      equation: currentGuess,
+      result: playerResult,
+      rowIndex: gameState?.currentAttempt || 0,
+    };
+    setPendingGuess(pendingGuessData);
+    setProcessingStep("encrypting");
 
-      if (guessChar === targetChar) {
-        newBoard[currentRow][i].state = "correct";
-      } else if (currentEquationData.equation.includes(guessChar)) {
-        newBoard[currentRow][i].state = "present";
-      } else {
-        newBoard[currentRow][i].state = "absent";
+    // Submit using the hook with success and error callbacks
+    const success = await submitGuessToContract(
+      currentGuess,
+      address,
+      (data) => {
+        console.log("Guess submitted successfully:", data);
+        setProcessingStep("submitting");
+        // The hook will trigger writeContract, and transaction success will be handled in useEffect
+      },
+      (error) => {
+        console.error("Failed to submit guess:", error);
+        setWarningMessage(error);
+        setTimeout(() => setWarningMessage(""), 3000);
+        setPendingGuess(null);
+        setProcessingStep(null);
       }
+    );
+
+    if (!success && submissionError) {
+      setWarningMessage(submissionError);
+      setTimeout(() => setWarningMessage(""), 3000);
+      setPendingGuess(null);
+      setProcessingStep(null);
     }
-
-    setBoard(newBoard);
-
-    // Update keyboard status based on feedback
-    const newKeyboardStatus = { ...keyboardStatus };
-    for (let i = 0; i < EQUATION_LENGTH; i++) {
-      const guessChar = currentGuess[i];
-      const currentStatus = newKeyboardStatus[guessChar];
-      const newStatus = newBoard[currentRow][i].state;
-
-      // Only update if the new status is "better" than the current one
-      // Priority: correct > present > absent
-      if (
-        !currentStatus ||
-        (currentStatus === "absent" &&
-          (newStatus === "present" || newStatus === "correct")) ||
-        (currentStatus === "present" && newStatus === "correct")
-      ) {
-        newKeyboardStatus[guessChar] = newStatus;
-      }
-    }
-    setKeyboardStatus(newKeyboardStatus);
-
-    // Store the result for this row
-    const newRowResults = [...rowResults];
-    newRowResults[currentRow] = guessResult;
-    setRowResults(newRowResults);
-
-    // Check for exact equation match (win condition)
-    if (currentGuess === currentEquationData.equation) {
-      setGameStatus("won");
-    }
-
-    if (
-      currentGuess !== currentEquationData.equation &&
-      currentRow === MAX_ATTEMPTS - 1
-    ) {
-      setGameStatus("lost");
-    } else if (currentGuess !== currentEquationData.equation) {
-      setCurrentRow(currentRow + 1);
-      setCurrentCol(0);
-    }
-  };
-
-  const resetGame = () => {
-    setCurrentRow(0);
-    setCurrentCol(0);
-    setGameStatus("playing");
-    setRowResults(new Array(MAX_ATTEMPTS).fill(null));
-    setBoard(initializeBoard());
-    setCurrentEquationData(getRandomEquation());
-    setKeyboardStatus({});
   };
 
   const getTileStyle = (state: TileState): string => {
@@ -265,87 +280,135 @@ export function NumberleGame() {
     }
   };
 
-  const getKeyboardKeyStyle = (key: string) => {
-    const status = keyboardStatus[key];
-    const baseClass =
-      "w-8 h-10 rounded text-sm font-semibold transition-colors duration-200";
+  const getKeyboardFeedback = (): Record<string, KeyFeedback> => {
+    const feedback: Record<string, KeyFeedback> = {};
 
-    let style: React.CSSProperties = {};
-    let className = baseClass;
-
-    switch (status) {
-      case "correct":
-        style = { backgroundColor: "#10b981", color: "white" };
-        break;
-      case "present":
-        style = { backgroundColor: "#eab308", color: "white" };
-        break;
-      case "absent":
-        style = { backgroundColor: "#6b7280", color: "white" };
-        break;
-      default:
-        style = { backgroundColor: "#9ca3af", color: "white" };
-        break;
+    // If no game state or guesses, return empty feedback
+    if (!gameState?.guesses) {
+      return feedback;
     }
 
-    return { className, style };
+    // Analyze all guesses to determine the best feedback for each character
+    gameState.guesses.forEach((guess) => {
+      const equation = guess.equation;
+      const guessFeedback = guess.feedback;
+
+      for (let i = 0; i < equation.length && i < guessFeedback.length; i++) {
+        const char = equation[i];
+        const charFeedback = guessFeedback[i] as KeyFeedback;
+
+        // Skip if current feedback is empty or character is empty
+        if (!char || charFeedback === "empty") continue;
+
+        // Determine the best feedback (priority: correct > present > absent > empty)
+        const currentFeedback = feedback[char] || "empty";
+        if (
+          charFeedback === "correct" ||
+          (charFeedback === "present" && currentFeedback !== "correct") ||
+          (charFeedback === "absent" && currentFeedback === "empty")
+        ) {
+          feedback[char] = charFeedback;
+        }
+      }
+    });
+
+    return feedback;
   };
 
   const getResultTileStyle = (rowIndex: number): string => {
-    const result = rowResults[rowIndex];
     const baseStyle =
       "w-12 h-12 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300";
 
-    if (result === null) {
-      return `${baseStyle} bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500`;
+    // For completed rows, get from gameState
+    if (gameState?.guesses && rowIndex < gameState.guesses.length) {
+      const guess = gameState.guesses[rowIndex];
+
+      // Color based on result feedback
+      if (guess.resultFeedback === "equal") {
+        return `${baseStyle} bg-green-500 text-white`; // Green for correct
+      } else if (guess.resultFeedback === "less") {
+        return `${baseStyle} bg-cyan-400 text-white`; // Blue for too low
+      } else if (guess.resultFeedback === "greater") {
+        return `${baseStyle} bg-red-400 text-white`; // Red for too high
+      }
     }
 
-    if (result === currentEquationData.result) {
-      return `${baseStyle} bg-green-500 text-white`;
-    } else if (result < currentEquationData.result) {
-      // Too low - blue/cyan colors
-      return `${baseStyle} bg-cyan-400 text-white`;
-    } else {
-      // Too high - red/orange colors
-      return `${baseStyle} bg-red-400 text-white`;
+    // For current row (if user is typing), show neutral style
+    if (
+      rowIndex === (gameState?.currentAttempt || 0) &&
+      currentInput.length === EQUATION_LENGTH
+    ) {
+      return `${baseStyle} bg-gray-400 text-white`;
     }
+
+    // Default empty state
+    return `${baseStyle} bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500`;
   };
 
   const getResultDisplay = (
     rowIndex: number
   ): { value: string; arrow: string } => {
-    const result = rowResults[rowIndex];
-    if (result === null) return { value: "", arrow: "" };
+    // For completed rows, get from gameState
+    if (gameState?.guesses && rowIndex < gameState.guesses.length) {
+      const guess = gameState.guesses[rowIndex];
+      const value = guess.result;
 
-    const value = Number.isInteger(result)
-      ? result.toString()
-      : result.toFixed(2);
-    let arrow = "";
+      // Get feedback text based on result feedback
+      let arrow = "";
+      if (guess.resultFeedback === "less") arrow = "LOW";
+      else if (guess.resultFeedback === "greater") arrow = "HIGH";
+      else if (guess.resultFeedback === "equal") arrow = "✓";
 
-    if (result !== currentEquationData.result) {
-      arrow = result < currentEquationData.result ? "↑" : "↓";
+      return { value, arrow };
     }
 
-    return { value, arrow };
+    // For current row (if user is typing), calculate result on-the-fly
+    if (
+      rowIndex === (gameState?.currentAttempt || 0) &&
+      currentInput.length === EQUATION_LENGTH
+    ) {
+      try {
+        const result = calculateResult(currentInput);
+        return { value: result.toString(), arrow: "" };
+      } catch (error) {
+        return { value: "", arrow: "" };
+      }
+    }
+
+    return { value: "", arrow: "" };
   };
 
   const getResultTooltip = (rowIndex: number): string => {
-    const result = rowResults[rowIndex];
-    if (result === null) return "Result will appear here";
+    // For completed rows, get from gameState with feedback info
+    if (gameState?.guesses && rowIndex < gameState.guesses.length) {
+      const guess = gameState.guesses[rowIndex];
+      let feedbackText = "";
+      if (guess.resultFeedback === "equal") feedbackText = " (Correct!)";
+      else if (guess.resultFeedback === "less")
+        feedbackText = " (Too low - aim higher!)";
+      else if (guess.resultFeedback === "greater")
+        feedbackText = " (Too high - aim lower!)";
 
-    if (result === currentEquationData.result) {
-      return "Perfect! Your result matches the target";
-    } else if (result < currentEquationData.result) {
-      return `Too low. Try a higher result.`;
-    } else {
-      return `Too high. Try a lower result.`;
+      return `Result: ${guess.result}${feedbackText}`;
     }
+
+    // For current row
+    if (rowIndex === (gameState?.currentAttempt || 0)) {
+      if (currentInput.length === EQUATION_LENGTH) {
+        try {
+          const result = calculateResult(currentInput);
+          return `Result: ${result}`;
+        } catch (error) {
+          return "Invalid equation";
+        }
+      }
+      return "Complete equation to see result";
+    }
+
+    return "Result will appear here";
   };
 
-  const handleVirtualKeyboard = (key: string) => {
-    handleKeyPress(key);
-  };
-
+  // Keyboard handler effect
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       handleKeyPress(event.key);
@@ -355,323 +418,331 @@ export function NumberleGame() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [board, currentRow, currentCol, gameStatus, currentEquationData.result]);
+  }, [currentCol, gameState?.isGameComplete]);
 
   return (
-    <div
-      className="max-w-lg mx-auto p-4 rounded-xl shadow-lg relative"
-      style={{ backgroundColor: "#122531" }}
-    >
-      <div className="text-center mb-6 relative z-10">
-        <button
-          onClick={() => setShowRules(true)}
-          className="mt-2 text-sm underline hover:opacity-80"
-          style={{ color: "#0AD9DC" }}
-        >
-          How to play
-        </button>
-      </div>
-
-      {/* Warning Message */}
-      {warningMessage && (
-        <div className="mb-4 text-center">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative inline-block">
-            <span className="block sm:inline">{warningMessage}</span>
+    <>
+      <div
+        className="mx-auto shadow-lg relative"
+        style={{ backgroundColor: "#0AD9DC", width: "fit-content" }}
+      >
+        {/* Header strip */}
+        <div className="flex items-center justify-between px-3 py-1">
+          <div className="font-mono uppercase tracking-widest text-black text-base md:text-lg">
+            Equle*
           </div>
+          <button
+            onClick={() => setShowRules(true)}
+            className="text-black text-sm underline hover:opacity-80"
+          >
+            How to play?
+          </button>
         </div>
-      )}
+        {/* Board container */}
+        <div
+          className="relative p-3"
+          style={{ backgroundColor: "#021623", border: "2px solid #0AD9DC33" }}
+        >
+          <div className="relative" style={{ backgroundColor: "#001623" }}>
+            <div className="text-center mb-4 relative z-10"></div>
+            <button onClick={() => setShowRules(true)} className="hidden">
+              How to play
+            </button>
 
-      {/* Game Board */}
-      <div className="flex justify-center mb-6 relative z-10">
-        <div className="grid gap-2">
-          {board.map((row, rowIndex) => (
-            <div key={rowIndex} className="flex gap-2 items-center">
-              <div className="grid grid-cols-5 gap-2">
-                {row.map((tile, colIndex) => (
+            {/* Warning Message */}
+            {warningMessage && (
+              <div className="mb-4 text-center">
+                <div
+                  className="inline-block px-4 py-3"
+                  style={{
+                    color: "#ffffff",
+                    backgroundColor: "transparent",
+                    borderTop: "2px dotted #0AD9DC",
+                    borderBottom: "2px dotted #0AD9DC",
+                  }}
+                >
+                  <span className="block sm:inline font-visitor1 uppercase tracking-widest">
+                    {warningMessage}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Processing Step Message */}
+            {isProcessingGuess && processingStep && (
+              <div className="mb-4 text-center">
+                <div
+                  className="inline-block px-4 py-3"
+                  style={{
+                    color: "#ffffff",
+                    backgroundColor: "transparent",
+                    borderTop: "2px dotted #0AD9DC",
+                    borderBottom: "2px dotted #0AD9DC",
+                  }}
+                >
+                  <span className="block sm:inline font-visitor1 uppercase tracking-widest">
+                    {processingStep === "encrypting"
+                      ? "Encrypting guess..."
+                      : processingStep === "submitting"
+                      ? "Submitting guess..."
+                      : "Confirming..."}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Winning Message and Finalize Button */}
+            {shouldShowFinalizeButton && (
+              <div className="mb-4 text-center">
+                {/* Branded win banner */}
+                <div className="mb-3">
                   <div
-                    key={colIndex}
-                    className={`
-                      w-12 h-12 rounded flex items-center justify-center
-                      text-lg font-bold transition-colors duration-300
-                      ${getTileStyle(tile.state)}
-                      ${
-                        rowIndex === currentRow && colIndex === currentCol
-                          ? "ring-2 ring-blue-500"
-                          : ""
-                      }
-                    `}
+                    className="inline-block px-4 py-3"
+                    style={{
+                      color: "#ffffff",
+                      backgroundColor: "transparent",
+                      borderTop: "2px dotted #0AD9DC",
+                      borderBottom: "2px dotted #0AD9DC",
+                    }}
                   >
-                    {tile.value ||
-                      (tile.state === "empty" && rowIndex >= currentRow
-                        ? ""
-                        : "")}
+                    <span className="block sm:inline font-visitor1 uppercase tracking-widest">
+                      You solved it!
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs sm:text-sm text-gray-300 font-mono uppercase tracking-widest">
+                    {hasDecryptedEquation()
+                      ? "Equation is ready! Click to finalize your victory."
+                      : 'Click "Finalize Game" to claim your victory and reveal the solution!'}
+                  </div>
+                </div>
+
+                {!isFinalizingGame ? (
+                  <button
+                    onClick={
+                      hasDecryptedEquation()
+                        ? decryptFinalizedEquation
+                        : finalizeGame
+                    }
+                    className="px-4 py-2 bg-white text-black uppercase tracking-widest flex items-center justify-center gap-2 font-bold mx-auto"
+                  >
+                    <span>
+                      {hasDecryptedEquation()
+                        ? "Claim Victory"
+                        : "Finalize Game"}
+                    </span>
+                    <img
+                      src="/button_icon.svg"
+                      alt="icon"
+                      className="w-3 h-3"
+                      style={{ filter: "brightness(0) saturate(100%)" }}
+                    />
+                  </button>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-cyan-400"></div>
+                    <div className="text-sm font-medium text-white">
+                      {finalizeMessage || "Processing..."}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Finalize Message */}
+            {finalizeMessage && !shouldShowFinalizeButton && (
+              <div className="mb-4 text-center">
+                <div
+                  className="inline-block px-4 py-3"
+                  style={{
+                    color: "#ffffff",
+                    backgroundColor: "transparent",
+                    borderTop: "2px dotted #0AD9DC",
+                    borderBottom: "2px dotted #0AD9DC",
+                  }}
+                >
+                  <span className="block sm:inline font-visitor1 uppercase tracking-widest">
+                    {finalizeMessage}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Game Board */}
+            <div className="flex justify-center mb-4 relative z-10">
+              <div className="grid gap-0" style={{ width: "fit-content" }}>
+                {getDisplayBoard().map((row, rowIndex) => (
+                  <div
+                    key={rowIndex}
+                    className="flex items-center mb-2 last:mb-0"
+                  >
+                    <div className="grid grid-cols-5 gap-0 flex-shrink-0">
+                      {row.map((tile, colIndex) => (
+                        <div
+                          key={colIndex}
+                          className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center text-xl sm:text-2xl md:text-3xl font-bold transition-colors duration-300"
+                          style={{
+                            backgroundColor:
+                              tile.state === "empty"
+                                ? rowIndex ===
+                                    (gameState?.currentAttempt || 0) &&
+                                  !gameState?.isGameComplete
+                                  ? "#1D4748"
+                                  : "#162A35"
+                                : tile.state === "correct"
+                                ? "#1CE07E"
+                                : tile.state === "present"
+                                ? "#eab308"
+                                : "#1D4748",
+                            color:
+                              tile.state === "empty" ? "#ffffff" : "#0B1F2A",
+                            border: "1px solid #FFFFFF",
+                          }}
+                        >
+                          {tile.value ||
+                            (tile.state === "empty" &&
+                            rowIndex >= (gameState?.currentAttempt || 0)
+                              ? ""
+                              : "")}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Equals sign - always visible */}
+                    <span className="text-xl sm:text-2xl md:text-3xl font-bold text-white mx-1 sm:mx-2">
+                      =
+                    </span>
+
+                    {/* Result tile - always visible */}
+                    <div className="relative flex-shrink-0">
+                      <div
+                        className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center transition-colors duration-300 relative"
+                        style={{
+                          backgroundColor:
+                            gameState?.guesses &&
+                            rowIndex < (gameState?.guesses?.length || 0)
+                              ? gameState.guesses[rowIndex].resultFeedback ===
+                                "equal"
+                                ? "#1CE07E"
+                                : gameState.guesses[rowIndex].resultFeedback ===
+                                  "less"
+                                ? "#1DCAD6"
+                                : "#F29C7B"
+                              : "#162A35",
+                          color: "#0B1F2A",
+                          border: "1px solid #FFFFFF",
+                        }}
+                        onMouseEnter={() => setHoveredResultTile(rowIndex)}
+                        onMouseLeave={() => setHoveredResultTile(null)}
+                      >
+                        {/* Centered value when no feedback; positioned value+arrow when feedback exists */}
+                        {gameState?.guesses &&
+                        rowIndex < (gameState?.guesses?.length || 0) ? (
+                          <>
+                            <span
+                              className="absolute left-1 bottom-1 sm:left-1 sm:bottom-1 md:left-2 md:bottom-2 text-lg sm:text-xl md:text-2xl font-bold leading-none"
+                              style={{ color: "#0B1F2A" }}
+                            >
+                              {getResultDisplay(rowIndex).value}
+                            </span>
+                            {getResultDisplay(rowIndex).arrow && (
+                              <span
+                                className="absolute right-1 top-1 sm:right-1 sm:top-1 md:right-2 md:top-2 text-base sm:text-lg md:text-xl font-bold leading-none"
+                                style={{ color: "#0B1F2A" }}
+                              >
+                                {getResultDisplay(rowIndex).arrow === "LOW"
+                                  ? "↑"
+                                  : getResultDisplay(rowIndex).arrow === "HIGH"
+                                  ? "↓"
+                                  : "✓"}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span
+                            className="text-lg sm:text-xl md:text-2xl font-bold leading-none"
+                            style={{ color: "#ffffff" }}
+                          >
+                            {getResultDisplay(rowIndex).value}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Custom tooltip */}
+                      {hoveredResultTile === rowIndex && (
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-10">
+                          <div className="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
+                            {getResultTooltip(rowIndex)}
+                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
-
-              {/* Equals sign - always visible */}
-              <span className="text-lg font-bold text-gray-600 dark:text-gray-300 mx-1">
-                =
-              </span>
-
-              {/* Result tile - always visible */}
-              <div className="relative">
-                <div
-                  className={getResultTileStyle(rowIndex)}
-                  onMouseEnter={() => setHoveredResultTile(rowIndex)}
-                  onMouseLeave={() => setHoveredResultTile(null)}
-                >
-                  <div className="flex flex-col items-center justify-center">
-                    <span className="text-sm font-bold">
-                      {getResultDisplay(rowIndex).value}
-                    </span>
-                    {getResultDisplay(rowIndex).arrow && (
-                      <span className="text-xs">
-                        {getResultDisplay(rowIndex).arrow}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Custom tooltip */}
-                {hoveredResultTile === rowIndex &&
-                  rowResults[rowIndex] !== null && (
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-10">
-                      <div className="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded px-2 py-1 whitespace-nowrap">
-                        {getResultTooltip(rowIndex)}
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
-                      </div>
-                    </div>
-                  )}
-              </div>
-            </div>
-          ))}
-
-          {/* Solution section - only shown when game is lost */}
-          {gameStatus === "lost" && (
-            <div className="mt-4 pt-4 border-t-2 border-gray-300 dark:border-gray-600">
-              {/* Solution label */}
-              <div className="text-center mb-2">
-                <span className="text-xl font-bold text-white">Solution</span>
-              </div>
-
-              {/* Solution row */}
-              <div className="flex gap-2 items-center">
-                <div className="grid grid-cols-5 gap-2">
-                  {currentEquationData.equation
-                    .split("")
-                    .map((char, colIndex) => (
-                      <div
-                        key={colIndex}
-                        className="w-12 h-12 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300 bg-green-500 text-white shadow-lg"
-                      >
-                        {char}
-                      </div>
-                    ))}
-                </div>
-
-                {/* Solution equals sign */}
-                <span className="text-lg font-bold text-gray-600 dark:text-gray-400 mx-1">
-                  =
-                </span>
-
-                {/* Solution result tile */}
-                <div className="w-12 h-12 rounded flex items-center justify-center text-lg font-bold bg-green-500 text-white shadow-lg">
-                  {currentEquationData.result}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Virtual Keyboard */}
-      <div className="space-y-2 relative z-10">
-        <div className="flex gap-1 justify-center">
-          {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((key) => {
-            const { className, style } = getKeyboardKeyStyle(key);
-            return (
-              <button
-                key={key}
-                onClick={() => handleVirtualKeyboard(key)}
-                className={className}
-                style={style}
-              >
-                {key}
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex gap-1 justify-center">
-          {["+", "-", "*", "/"].map((key) => {
-            const { className, style } = getKeyboardKeyStyle(key);
-            return (
-              <button
-                key={key}
-                onClick={() => handleVirtualKeyboard(key)}
-                className={className}
-                style={style}
-              >
-                {key}
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex gap-2 justify-center mt-4">
-          <button
-            onClick={() => handleVirtualKeyboard("Enter")}
-            className="px-4 py-2 text-white rounded font-semibold transition-colors duration-200 hover:opacity-80"
-            style={{ backgroundColor: "#0AD9DC" }}
-          >
-            Enter
-          </button>
-          <button
-            onClick={() => handleVirtualKeyboard("Backspace")}
-            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded font-semibold
-                       transition-colors duration-200"
-          >
-            ⌫
-          </button>
-        </div>
-      </div>
-
-      {/* Win/Loss Message and Play Again Button - shown when game is over */}
-      {gameStatus !== "playing" && (
-        <div className="mt-6 text-center relative z-10">
-          {gameStatus === "won" ? (
-            <div className="mb-4">
-              <div className="text-2xl font-bold text-green-400 mb-2">
-                🎉 Congratulations! 🎉
-              </div>
-              <div className="text-lg text-gray-300">
-                You found the correct equation!
-              </div>
-            </div>
-          ) : (
-            <div className="mb-4">
-              <div className="text-xl font-bold text-red-400 mb-2">
-                Game Over
-              </div>
-              <div className="text-lg text-gray-300">
-                Better luck next time!
-              </div>
-            </div>
-          )}
-          <button
-            onClick={resetGame}
-            className="px-6 py-2 text-white rounded-lg font-semibold transition-colors duration-200 hover:opacity-80"
-            style={{ backgroundColor: "#0AD9DC" }}
-          >
-            Play Again
-          </button>
-        </div>
-      )}
-
-      {/* Rules Modal */}
-      {showRules && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div
-            className="rounded-lg max-w-md w-full max-h-[90vh] flex flex-col"
-            style={{ backgroundColor: "#122531" }}
-          >
-            <div className="p-6 pb-0">
-              <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
-                How to Play
-              </h3>
-            </div>
-            <div className="px-6 overflow-y-auto flex-1">
-              <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
-                <p>
-                  • Find the exact 5-character mathematical expression in 6
-                  tries
-                </p>
-                <p>• You must match the exact equation, not just the result</p>
-                <p>• Each guess must be valid (no = sign, use +, -, *, /)</p>
-                <p>
-                  • <strong>Important:</strong> Math is evaluated left-to-right
-                  (6+4*2 = 20, not 14)
-                </p>
-                <p>• Two types of clues help you:</p>
-
-                <div className="ml-4">
-                  <p className="font-semibold mb-1">
-                    1. Tile Colors (Position Clues):
-                  </p>
-                  <div className="space-y-1 ml-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-green-500 rounded"></div>
-                      <span>Green: Right digit/operator in right position</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-yellow-500 rounded"></div>
-                      <span>
-                        Yellow: Right digit/operator in wrong position
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-gray-500 rounded"></div>
-                      <span>Gray: Not in the target equation</span>
-                    </div>
-                  </div>
-
-                  <p className="font-semibold mt-3 mb-1">
-                    2. Result Feedback (Math Clues):
-                  </p>
-                  <div className="ml-2 space-y-2">
-                    <p>• After each guess, check the result tile for hints:</p>
-                    <div className="space-y-1 ml-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-green-500 rounded flex items-center justify-center text-white text-xs font-bold">
-                          ✓
-                        </div>
-                        <span>Green: Your result matches exactly!</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-6 h-6 border rounded flex items-center justify-center text-white text-xs font-bold"
-                          style={{
-                            backgroundColor: "#0AD9DC",
-                            borderColor: "#0AD9DC",
-                          }}
-                        >
-                          ↑
-                        </div>
-                        <span>
-                          Blue with ↑: Your result is too low (aim higher)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-red-100 border border-red-300 rounded flex items-center justify-center text-red-800 text-xs font-bold">
-                          ↓
-                        </div>
-                        <span>
-                          Red with ↓: Your result is too high (aim lower)
-                        </span>
-                      </div>
-                    </div>
-                    <p className="mt-2">
-                      <strong>Example:</strong> If target result is 15 and you
-                      guess "2*3+4" = 10 (left-to-right: 2*3=6, then 6+4=10),
-                      you'll see a blue tile with ↑ (too low)
-                    </p>
-                  </div>
-                </div>
-
-                <p>• Win by finding the exact equation structure!</p>
-              </div>
-            </div>
-            <div className="p-6 pt-4">
-              <button
-                onClick={() => setShowRules(false)}
-                className="w-full py-2 text-white rounded font-semibold transition-colors duration-200 hover:opacity-80"
-                style={{ backgroundColor: "#0AD9DC" }}
-              >
-                Got it!
-              </button>
             </div>
           </div>
         </div>
-      )}
-    </div>
+
+        {/* Win/Loss Message - shown when game is over */}
+        {gameState?.isGameComplete && (
+          <div className="mt-6 text-center relative z-10">
+            {gameState?.hasWon ? (
+              <div className="mb-4">
+                <div
+                  className="inline-block px-4 py-3 text-center"
+                  style={{
+                    color: "#000000",
+                    backgroundColor: "transparent",
+                    borderTop: "2px dotted #0AD9DC",
+                    borderBottom: "2px dotted #0AD9DC",
+                  }}
+                >
+                  <span className="block sm:inline font-mono uppercase tracking-widest text-center">
+                    Congratulations!
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-4">
+                <div
+                  className="inline-block px-4 py-3 text-center"
+                  style={{
+                    color: "#000000",
+                    backgroundColor: "transparent",
+                    borderTop: "2px dotted #0AD9DC",
+                    borderBottom: "2px dotted #0AD9DC",
+                  }}
+                >
+                  <span className="block sm:inline font-mono uppercase tracking-widest">
+                    Game Over
+                  </span>
+                </div>
+                <div className="mt-2 text-xs sm:text-sm text-black font-mono uppercase tracking-widest text-center">
+                  Better luck next time!
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rules Modal */}
+        <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
+      </div>
+
+      {/* Virtual Keyboard */}
+      <div className="mx-auto w-fit">
+        <VirtualKeyboard
+          onKeyPress={handleKeyPress}
+          isDisabled={isProcessingGuess}
+          keyFeedback={getKeyboardFeedback()}
+          isProcessingGuess={isProcessingGuess}
+          processingStep={processingStep}
+          currentCol={currentCol}
+          hasAtLeastOneOperation={hasAtLeastOneOperation}
+          currentInput={currentInput}
+        />
+      </div>
+    </>
   );
 }

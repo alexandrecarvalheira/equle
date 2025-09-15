@@ -10,9 +10,9 @@ export function Footer() {
       <div className="container mx-auto px-4 flex flex-col items-center space-y-2">
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-2">
-            <Link 
-              href="https://www.fhenix.io/" 
-              target="_blank" 
+            <Link
+              href="https://www.fhenix.io/"
+              target="_blank"
               rel="noopener noreferrer"
               className="hover:opacity-80 transition-opacity"
             >
