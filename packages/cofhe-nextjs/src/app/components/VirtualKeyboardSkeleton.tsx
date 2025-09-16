@@ -46,7 +46,11 @@ export function VirtualKeyboardSkeleton() {
   return (
     <div
       className="relative z-10 p-2 inline-block mx-auto"
-      style={{ backgroundColor: "#021623", border: "1px solid #0AD9DC33" }}
+      style={{
+        backgroundColor: "#021623",
+        border: "2px solid #0AD9DC33",
+        width: "fit-content",
+      }}
     >
       {/* Decorative inner frame that doesn't constrain content */}
       <div
@@ -62,16 +66,22 @@ export function VirtualKeyboardSkeleton() {
           pointerEvents: "none",
         }}
       />
-      <div className="relative space-y-1 sm:space-y-2">
+      <div className="relative space-y-0 sm:space-y-1">
         {/* Row 1 */}
-        <div className="flex flex-wrap gap-0 justify-center -space-x-0.5 sm:-space-x-1">
+        <div
+          className="flex gap-0 justify-center -space-x-0.5 sm:-space-x-1"
+          style={{ flexWrap: "nowrap" }}
+        >
           {["0", "1", "2", "3", "4", "+", "-"].map((key) => (
             <React.Fragment key={key}>{renderKey(key)}</React.Fragment>
           ))}
         </div>
 
         {/* Row 2 */}
-        <div className="flex flex-wrap gap-0 justify-center -space-x-0.5 sm:-space-x-1">
+        <div
+          className="flex gap-0 justify-center -space-x-0.5 sm:-space-x-1"
+          style={{ flexWrap: "nowrap" }}
+        >
           {["5", "6", "7", "8", "9", "*", "/"].map((key) => (
             <React.Fragment key={key}>{renderKey(key)}</React.Fragment>
           ))}

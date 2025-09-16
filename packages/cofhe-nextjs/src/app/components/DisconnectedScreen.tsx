@@ -42,7 +42,7 @@ export function DisconnectedScreen() {
           </div>
         </div>
       </MonitorFrame>
-      <div className="mt-4 w-full flex justify-center">
+      <div className="mt-4 mx-auto w-fit">
         <VirtualKeyboardSkeleton />
       </div>
     </div>

@@ -159,7 +159,7 @@ export default function Home() {
                       )}
                     </div>
                   </MonitorFrame>
-                  <div className="mt-6 flex justify-center">
+                  <div className="mt-6 mx-auto w-fit">
                     <VirtualKeyboardSkeleton />
                   </div>
                 </>
@@ -176,7 +176,7 @@ export default function Home() {
                       }
                     />
                   </MonitorFrame>
-                  <div className="mt-6 flex justify-center">
+                  <div className="mt-6 mx-auto w-fit">
                     <VirtualKeyboardSkeleton />
                   </div>
                 </>
