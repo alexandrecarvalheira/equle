@@ -28,6 +28,7 @@
     "npm": ">=8.0.0"
   },
   "dependencies": {
+    "@coinbase/onchainkit": "^1.0.2",
     "@fhenixprotocol/cofhe-contracts": "^0.0.13"
   }
 }
