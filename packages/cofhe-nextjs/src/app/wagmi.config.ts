@@ -9,6 +9,7 @@ export const wagmiConfig = createConfig({
     coinbaseWallet({
       appName: "Equle",
       version: "4",
+      preference: "eoaOnly",
     }),
     miniAppConnector(),
   ],

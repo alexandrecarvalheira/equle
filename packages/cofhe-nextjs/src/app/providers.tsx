@@ -11,7 +11,7 @@ const queryClient = new QueryClient();
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <MiniKitProvider
-      chain={base}
+      chain={baseSepolia}
       apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
       config={{
         appearance: {
