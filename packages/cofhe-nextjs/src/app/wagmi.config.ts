@@ -10,6 +10,7 @@ export const wagmiConfig = createConfig({
       appName: "Equle",
       version: "4",
     }),
+    miniAppConnector(),
   ],
   ssr: true,
   // turn off injected provider discovery
