@@ -67,15 +67,9 @@ export default function Home() {
   };
 
   const handleRemovePermit = async () => {
-    if (
-      confirm(
-        "Are you sure you want to remove the current permit? You will need to generate a new one to continue playing."
-      )
-    ) {
-      const success = await removePermit();
-      if (success) {
-        console.log("Permit removed successfully");
-      }
+    const success = await removePermit();
+    if (success) {
+      console.log("Permit removed successfully");
     }
   };
 
