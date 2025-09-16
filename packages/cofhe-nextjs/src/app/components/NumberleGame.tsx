@@ -718,9 +718,6 @@ export function NumberleGame({
                     Game Over
                   </span>
                 </div>
-                <div className="mt-2 text-xs sm:text-sm text-black font-mono uppercase tracking-widest text-center">
-                  Better luck next time!
-                </div>
               </div>
             )}
           </div>

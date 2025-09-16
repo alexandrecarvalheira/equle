@@ -9,14 +9,22 @@ import { cofhejs } from "cofhejs/web";
 type SyncStatus = "loading" | "synced" | "needs-sync" | "error";
 
 export function useGameStateValidator(
-  address?: `0x${string}`, 
+  address?: `0x${string}`,
   currentGameId?: number | null
 ) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("loading");
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasTriggeredValidation, setHasTriggeredValidation] = useState(false);
 
-  const { gameState, walletAddress, isGameStateSynced, clearGameState, setGameStateSynced, setWalletAddress } = useGameStore();
+  const {
+    gameState,
+    walletAddress,
+    isGameStateSynced,
+    clearGameState,
+    setGameStateSynced,
+    setWalletAddress,
+  } = useGameStore();
   const { isInitialized: isCofheInitialized } = useCofheStore();
   const { syncGameStateFromContract } = useGameSync(address, currentGameId);
 
@@ -25,7 +33,8 @@ export function useGameStateValidator(
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: CONTRACT_ABI,
     functionName: "getPlayerGameState",
-    args: currentGameId !== null && address ? [currentGameId, address] : undefined,
+    args:
+      currentGameId !== null && address ? [currentGameId, address] : undefined,
     query: { enabled: false }, // Manual fetching only
   });
 
@@ -37,6 +46,7 @@ export function useGameStateValidator(
       setWalletAddress(address);
       setSyncStatus("needs-sync");
       setError(null);
+      setHasTriggeredValidation(false); // Reset validation flag for new address
     } else if (address && !walletAddress) {
       // First connection or same address reconnecting - just set the address
       setWalletAddress(address);
@@ -45,10 +55,15 @@ export function useGameStateValidator(
 
   // Clear game state when game ID changes
   useEffect(() => {
-    if (currentGameId !== null && gameState && gameState.gameId !== currentGameId) {
+    if (
+      currentGameId !== null &&
+      gameState &&
+      gameState.gameId !== currentGameId
+    ) {
       clearGameState();
       setSyncStatus("needs-sync");
       setError(null);
+      setHasTriggeredValidation(false); // Reset validation flag for new game
     }
   }, [currentGameId, gameState, clearGameState]);
 
@@ -64,9 +79,9 @@ export function useGameStateValidator(
       return;
     }
 
-    // Check if CoFHE permit is available
-    const permit = cofhejs?.getPermit();
-    if (!permit?.data) {
+    // Check if CoFHE permit is available - use getPermit() to get active permit
+    const permitResult = cofhejs?.getPermit();
+    if (!permitResult?.success || !permitResult?.data) {
       setSyncStatus("loading");
       return;
     }
@@ -76,7 +91,6 @@ export function useGameStateValidator(
     setSyncStatus("loading");
 
     try {
-
       // Fetch current on-chain state
       const { data: result } = (await refetchPlayerGameState({
         args: [currentGameId, address],
@@ -93,9 +107,8 @@ export function useGameStateValidator(
         hasWon: Boolean(onChainHasWon),
       };
 
-
       // Check if local state matches on-chain state
-      const isLocalStateSynced = 
+      const isLocalStateSynced =
         gameState &&
         gameState.gameId === onChainState.gameId &&
         gameState.currentAttempt === onChainState.currentAttempt &&
@@ -105,13 +118,12 @@ export function useGameStateValidator(
         setSyncStatus("synced");
       } else {
         setSyncStatus("needs-sync");
-        
+
         // Trigger sync from contract
         await syncGameStateFromContract();
-        
+
         setSyncStatus("synced");
       }
-
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error occurred");
       setSyncStatus("error");
@@ -119,21 +131,48 @@ export function useGameStateValidator(
       setIsValidating(false);
     }
   }, [
-    address, 
-    currentGameId, 
-    gameState, 
-    isGameStateSynced, 
+    address,
+    currentGameId,
+    gameState,
+    isGameStateSynced,
     isCofheInitialized,
-    refetchPlayerGameState, 
-    syncGameStateFromContract
+    refetchPlayerGameState,
+    syncGameStateFromContract,
   ]);
 
-  // Auto-validate when dependencies change
+  // Auto-validate when dependencies change (including permit availability)
   useEffect(() => {
     if (address && currentGameId !== null && isCofheInitialized) {
-      validateAndSync();
+      // Check if permit is available before attempting to sync
+      const checkAndValidate = () => {
+        const permitResult = cofhejs?.getPermit();
+        const hasActivePermit = permitResult?.success && permitResult?.data;
+
+        if (hasActivePermit && !hasTriggeredValidation) {
+          console.log("Auto-validation triggered with active permit");
+          setHasTriggeredValidation(true);
+          validateAndSync();
+        } else if (!hasActivePermit) {
+          console.log("Auto-validation skipped - no active permit");
+          setSyncStatus("loading");
+          setHasTriggeredValidation(false); // Reset so it can trigger again when permit becomes available
+        }
+      };
+
+      // Check immediately
+      checkAndValidate();
+
+      // Also check periodically for permit changes (but only trigger validation once)
+      const interval = setInterval(checkAndValidate, 2000);
+      return () => clearInterval(interval);
     }
-  }, [address, currentGameId, isCofheInitialized]); // Include CoFHE initialization status
+  }, [
+    address,
+    currentGameId,
+    isCofheInitialized,
+    validateAndSync,
+    hasTriggeredValidation,
+  ]); // Include CoFHE initialization status
 
   // Handle sync state changes from other components
   useEffect(() => {
@@ -142,10 +181,15 @@ export function useGameStateValidator(
     }
   }, [isGameStateSynced, syncStatus]);
 
+  const manualValidateAndSync = useCallback(() => {
+    setHasTriggeredValidation(false); // Reset flag to allow manual validation
+    validateAndSync();
+  }, [validateAndSync]);
+
   return {
     syncStatus,
     isValidating,
     error,
-    validateAndSync,
+    validateAndSync: manualValidateAndSync,
   };
 }

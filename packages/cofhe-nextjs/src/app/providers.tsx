@@ -22,6 +22,11 @@ export function Providers({ children }: { children: ReactNode }) {
           preference: "eoaOnly",
         },
       }}
+      miniKit={{
+        enabled: true,
+        autoConnect: true,
+        notificationProxyUrl: undefined,
+      }}
     >
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>

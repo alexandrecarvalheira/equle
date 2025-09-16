@@ -70,6 +70,7 @@ export function useCofhe(config?: Partial<CofheConfig>) {
   const accountAddress = walletClient?.account.address;
 
   const [isInitializing, setIsInitializing] = useState(false);
+  const [isGeneratingPermit, setIsGeneratingPermit] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [permit, setPermit] = useState<Permit | undefined>(undefined);
 
@@ -108,7 +109,7 @@ export function useCofhe(config?: Partial<CofheConfig>) {
           coFheUrl: undefined,
           thresholdNetworkUrl: undefined,
           ignoreErrors: false,
-          generatePermit: true,
+          generatePermit: false, // Changed to false for manual permit generation
         };
 
         // Merge default config with user-provided config
@@ -158,13 +159,59 @@ export function useCofhe(config?: Partial<CofheConfig>) {
     setGlobalIsInitialized,
   ]);
 
+  const createPermit = useCallback(
+    async (permitOptions?: any) => {
+      if (!globalIsInitialized || !accountAddress) {
+        return {
+          success: false,
+          error: "CoFHE not initialized or wallet not connected",
+        };
+      }
+
+      try {
+        setIsGeneratingPermit(true);
+        setError(null);
+
+        const result = await cofhejs.createPermit(permitOptions);
+
+        if (result.success) {
+          console.log("Permit generated successfully");
+          setPermit(result.data);
+          setError(null);
+          return result;
+        } else {
+          setError(new Error(result.error.message || String(result.error)));
+          return result;
+        }
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Unknown error generating permit";
+        const errorResult = {
+          success: false as const,
+          error: { message: errorMessage },
+        };
+        setError(new Error(errorMessage));
+        return errorResult;
+      } finally {
+        setIsGeneratingPermit(false);
+      }
+    },
+    [globalIsInitialized, accountAddress]
+  );
+
+  const { createPermit: _, ...cofhejsWithoutCreatePermit } = cofhejs;
+
   return {
     isInitialized: globalIsInitialized,
     isInitializing,
+    isGeneratingPermit,
     error,
     permit,
-    // Expose the original library functions directly
-    ...cofhejs,
+    createPermit,
+    // Expose the original library functions directly (excluding createPermit to avoid override)
+    ...cofhejsWithoutCreatePermit,
     FheTypes,
     Encryptable,
   };

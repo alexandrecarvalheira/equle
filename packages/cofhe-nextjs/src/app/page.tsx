@@ -3,9 +3,7 @@
 // Force dynamic rendering, skip prerendering
 export const dynamic = "force-dynamic";
 
-// import { ContractInteraction } from "./components/ContractInteraction";
 import { NumberleGame } from "./components/NumberleGame";
-import { NumberleGameSkeleton } from "./components/NumberleGameSkeleton";
 import { DisconnectedScreen } from "./components/DisconnectedScreen";
 import { MonitorFrame } from "./components/MonitorFrame";
 import { Footer } from "./components/Footer";
@@ -20,15 +18,77 @@ import { GameSyncError } from "./components/GameSyncError";
 import { VirtualKeyboardSkeleton } from "./components/VirtualKeyboardSkeleton";
 import { FHEModal } from "./components/FHEModal";
 import { useEffect, useState } from "react";
+import { useCofhe } from "./hooks/useCofhe";
+import { cofhejs } from "cofhejs/web";
 
 export default function Home() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { address, isConnected } = useAccount();
   const { isInitialized: isCofheInitialized } = useCofheStore();
+  const {
+    error: cofheError,
+    permit,
+    createPermit,
+    isGeneratingPermit,
+  } = useCofhe();
   const { gameId: currentGameId } = useCurrentGameId();
   const { syncStatus, isValidating, error, validateAndSync } =
     useGameStateValidator(address, currentGameId);
   const [showFHE, setShowFHE] = useState(false);
+  const [permitGenerated, setPermitGenerated] = useState(false);
+
+  // Update permitGenerated state when permit exists
+  useEffect(() => {
+    // Check for active permit from cofhejs directly
+    const checkForActivePermit = () => {
+      if (!isCofheInitialized) return;
+
+      const activePermitResult = cofhejs?.getPermit();
+      const hasActivePermit =
+        activePermitResult?.success && activePermitResult?.data;
+
+      if (hasActivePermit && !permitGenerated) {
+        console.log("Active permit found, setting permitGenerated to true");
+        setPermitGenerated(true);
+      }
+    };
+
+    // Check immediately when CoFHE is initialized
+    checkForActivePermit();
+
+    // Also check periodically in case permit state changes
+    const interval = setInterval(checkForActivePermit, 1000);
+
+    return () => clearInterval(interval);
+  }, [permitGenerated, isCofheInitialized]);
+
+  const handleGeneratePermit = async () => {
+    if (!isCofheInitialized || !address) return;
+
+    const permitName = `equle${currentGameId || ""}`;
+
+    const expirationDate = new Date();
+    expirationDate.setDate(expirationDate.getDate() + 1); // 1 day expiration
+
+    const result = await createPermit({
+      type: "self",
+      name: permitName,
+      issuer: address,
+      expiration: Math.round(expirationDate.getTime() / 1000),
+    });
+
+    if (result?.success) {
+      console.log("Permit created successfully, updating state");
+      setPermitGenerated(true);
+
+      // Force a sync validation check after permit generation
+      setTimeout(() => {
+        if (validateAndSync) {
+          validateAndSync();
+        }
+      }, 500);
+    }
+  };
 
   useEffect(() => {
     if (!isFrameReady) {
@@ -64,26 +124,64 @@ export default function Home() {
             <div className="mt-8">
               {!isConnected ? (
                 <DisconnectedScreen />
-              ) : !isCofheInitialized ? (
+              ) : !isCofheInitialized || !permitGenerated ? (
                 <>
-                  <MonitorFrame>
-                    <div className="px-4 w-full">
-                      <div className="max-w-2xl mx-auto text-center">
-                        <div
-                          className="font-visitor1 uppercase text-white text-xl sm:text-2xl md:text-3xl tracking-widest px-4 py-4"
-                          style={{
-                            borderTop: "2px dotted #0AD9DC",
-                            borderBottom: "2px dotted #0AD9DC",
-                          }}
-                        >
-                          Initializing CoFHE
+                  <MonitorFrame
+                    screenInsets={{ top: 6, right: 6, bottom: 8, left: 6 }}
+                  >
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-4 py-8 pb-12">
+                      <div className="text-center">
+                        <div className="font-visitor1 uppercase text-white text-lg sm:text-xl tracking-widest px-3 py-2">
+                          {!isCofheInitialized ? "Initializing CoFHE" : ""}
                         </div>
 
-                        <p className="text-gray-300 text-sm mt-4 font-visitor1 uppercase tracking-widest">
-                          Setting up fully homomorphic encryption for secure
-                          gameplay
+                        <p className="text-gray-300 text-xs sm:text-sm mt-3 font-visitor1 uppercase tracking-widest max-w-md">
+                          {!isCofheInitialized
+                            ? "Setting up fully homomorphic encryption for secure gameplay"
+                            : "A permit is required to authenticate your identity and grant access to your encrypted data."}
                         </p>
+
+                        {cofheError && (
+                          <p className="text-red-400 text-xs mt-2 font-visitor1 uppercase tracking-widest max-w-md">
+                            Error: {cofheError.message}
+                          </p>
+                        )}
                       </div>
+
+                      {isCofheInitialized && (
+                        <button
+                          onClick={handleGeneratePermit}
+                          disabled={permitGenerated || isGeneratingPermit}
+                          className="mt-4 mb-2 inline-flex items-center gap-2 px-6 py-2 text-white uppercase tracking-widest transition-opacity duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{
+                            backgroundColor: "transparent",
+                            borderTop: "2px dotted #0AD9DC",
+                            borderBottom: "2px dotted #0AD9DC",
+                            borderLeft: "none",
+                            borderRight: "none",
+                          }}
+                        >
+                          {isGeneratingPermit ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+                              <span>Generating...</span>
+                            </>
+                          ) : permitGenerated ? (
+                            <>
+                              <span>✓ Permit Generated</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>Generate Permit</span>
+                              <img
+                                src="/button_icon.svg"
+                                alt="icon"
+                                className="w-3 h-3"
+                              />
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </MonitorFrame>
                   <div className="mt-6 flex justify-center">

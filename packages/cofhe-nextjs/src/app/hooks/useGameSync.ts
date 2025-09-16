@@ -85,8 +85,8 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
         };
       }
 
-      const permit = cofhejs.getPermit();
-      if (!permit?.data) {
+      const permitResult = cofhejs.getPermit();
+      if (!permitResult?.success || !permitResult?.data) {
         return {
           success: false,
           data: null,
@@ -94,12 +94,14 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
         };
       }
 
+      const permit = permitResult.data;
+
       try {
         const unsealedValue = await cofhejs.unseal(
           encryptedValue,
           fheType,
           address,
-          permit.data.getHash()
+          permit.getHash()
         );
         return unsealedValue;
       } catch (error) {
