@@ -78,6 +78,7 @@ export function NumberleGame({
   } | null>(null);
 
   const [processingStep, setProcessingStep] = useState<ProcessingStep>(null);
+  const [isProcessingTransaction, setIsProcessingTransaction] = useState(false);
 
   // Component state
   const [currentInput, setCurrentInput] = useState("");
@@ -132,18 +133,57 @@ export function NumberleGame({
   }, [isSubmitting, pendingGuess, hash, submissionError]);
 
   const handleTransactionSuccess = async () => {
-    if (!pendingGuess) return;
+    if (!pendingGuess || isProcessingTransaction) {
+      console.log(
+        "Skipping transaction processing - already in progress or no pending guess"
+      );
+      return;
+    }
 
-    const success = await processTransactionSuccess(pendingGuess, gameState!);
+    try {
+      // Set guard to prevent multiple simultaneous calls
+      setIsProcessingTransaction(true);
 
-    if (success) {
-      // Reset input state for next guess after a short delay to ensure game state is updated
-      setTimeout(() => {
+      // Update to decrypting step
+      setProcessingStep("decrypting");
+
+      console.log("Transaction confirmed, starting decryption process...");
+
+      const success = await processTransactionSuccess(pendingGuess, gameState!);
+
+      if (success) {
+        console.log("Transaction success processed, resetting state...");
+        // Reset input state for next guess
         setCurrentInput("");
         setCurrentCol(0);
         setPendingGuess(null);
         setProcessingStep(null);
-      }, 100);
+        setIsProcessingTransaction(false);
+      } else {
+        console.error(
+          "Failed to process transaction success after all retries"
+        );
+        setProcessingStep(null);
+        setPendingGuess(null);
+        setIsProcessingTransaction(false);
+
+        // Auto-refresh page after failure
+        setWarningMessage("Failed to decrypt feedback. Refreshing page...");
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Error in handleTransactionSuccess:", error);
+      setProcessingStep(null);
+      setPendingGuess(null);
+      setIsProcessingTransaction(false);
+
+      // Auto-refresh page after error
+      setWarningMessage("Failed to process transaction. Refreshing page...");
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     }
   };
 
@@ -503,7 +543,11 @@ export function NumberleGame({
                       ? "Encrypting guess..."
                       : processingStep === "submitting"
                       ? "Submitting guess..."
-                      : "Confirming..."}
+                      : processingStep === "confirming"
+                      ? "Confirming..."
+                      : processingStep === "decrypting"
+                      ? "Decrypting feedback..."
+                      : "Processing..."}
                   </span>
                 </div>
               </div>

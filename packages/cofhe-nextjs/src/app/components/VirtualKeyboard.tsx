@@ -3,7 +3,12 @@
 import React from "react";
 
 export type KeyFeedback = "correct" | "present" | "absent" | "empty";
-export type ProcessingStep = "encrypting" | "submitting" | "confirming" | null;
+export type ProcessingStep =
+  | "encrypting"
+  | "submitting"
+  | "confirming"
+  | "decrypting"
+  | null;
 
 interface VirtualKeyboardProps {
   onKeyPress: (key: string) => void;

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { usePublicClient, useReadContract } from "wagmi";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "../../../contract/contract";
 import { useGameStore } from "../store/gameStore";
@@ -34,6 +34,7 @@ const buildCellStates = (
 export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
   const { gameState, setGameState, setGameStateSynced } = useGameStore();
   const publicClient = usePublicClient();
+  const processingRef = useRef<boolean>(false);
 
   // Contract hooks for player game state - get [currentAttempt, hasWon]
   const { data: playerGameStateData } = useReadContract({
@@ -303,13 +304,34 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
   const processTransactionSuccess = useCallback(
     async (
       pendingGuess: { equation: string; result: number },
-      currentGameState: GameState
+      currentGameState: GameState,
+      retryCount: number = 0
     ) => {
       if (!pendingGuess || !address || !currentGameState) {
-        return;
+        console.log("Missing required data for processTransactionSuccess");
+        return false;
       }
 
+      // Prevent multiple simultaneous processing
+      if (processingRef.current && retryCount === 0) {
+        console.log("Already processing transaction, skipping duplicate call");
+        return false;
+      }
+
+      if (retryCount === 0) {
+        processingRef.current = true;
+      }
+
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY = 2000; // 2 seconds
+
       try {
+        console.log(
+          `Processing transaction success (attempt ${retryCount + 1}/${
+            MAX_RETRIES + 1
+          })`
+        );
+
         // Get the last attempt number from current game state
         const lastAttemptIndex = currentGameState.currentAttempt;
 
@@ -317,6 +339,20 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
         const result = await readAttempt(lastAttemptIndex);
 
         if (!result || !Array.isArray(result) || result.length !== 4) {
+          console.log("Invalid attempt data, checking if we need to retry...");
+
+          // If data is not available yet and we haven't reached max retries, wait and retry
+          if (retryCount < MAX_RETRIES) {
+            console.log(`No valid data yet, retrying in ${RETRY_DELAY}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+            return await processTransactionSuccess(
+              pendingGuess,
+              currentGameState,
+              retryCount + 1
+            );
+          }
+
+          console.error("Max retries reached, giving up");
           return false;
         }
 
@@ -325,8 +361,24 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
 
         // Check if we have valid XOR data
         if (!equationXor || equationXor === BigInt(0)) {
+          console.log("Invalid XOR data, checking if we need to retry...");
+
+          // Retry if the XOR data is not ready yet
+          if (retryCount < MAX_RETRIES) {
+            console.log(`XOR data not ready, retrying in ${RETRY_DELAY}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+            return await processTransactionSuccess(
+              pendingGuess,
+              currentGameState,
+              retryCount + 1
+            );
+          }
+
+          console.error("Max retries reached for XOR data");
           return false;
         }
+
+        console.log("Unsealing encrypted feedback data...");
 
         // Unseal only the XOR and result feedback
         const [unsealedXor, unsealedResultFeedback] = await Promise.all([
@@ -336,8 +388,24 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
 
         // Check if unsealing was successful
         if (!unsealedXor?.success || !unsealedResultFeedback?.success) {
+          console.log("Unsealing failed, checking if we need to retry...");
+
+          // Retry if unsealing failed (data might not be ready)
+          if (retryCount < MAX_RETRIES) {
+            console.log(`Unsealing failed, retrying in ${RETRY_DELAY}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+            return await processTransactionSuccess(
+              pendingGuess,
+              currentGameState,
+              retryCount + 1
+            );
+          }
+
+          console.error("Max retries reached for unsealing");
           return false;
         }
+
+        console.log("Successfully unsealed feedback data");
 
         // Process the XOR result to get color feedback
         const xorValue = BigInt(unsealedXor.data || 0);
@@ -372,8 +440,37 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
         setGameState(updatedGameState);
         setGameStateSynced(true);
 
+        console.log(
+          "Successfully processed transaction and updated game state"
+        );
+
+        // Reset processing flag on success
+        if (retryCount === 0) {
+          processingRef.current = false;
+        }
+
         return true;
       } catch (error) {
+        console.error("Error in processTransactionSuccess:", error);
+
+        // Retry on error if we haven't reached max retries
+        if (retryCount < MAX_RETRIES) {
+          console.log(`Error occurred, retrying in ${RETRY_DELAY}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+          return await processTransactionSuccess(
+            pendingGuess,
+            currentGameState,
+            retryCount + 1
+          );
+        }
+
+        console.error("Max retries reached after error");
+
+        // Reset processing flag on final failure
+        if (retryCount === 0) {
+          processingRef.current = false;
+        }
+
         return false;
       }
     },
