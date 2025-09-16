@@ -15,7 +15,6 @@ export function useGameStateValidator(
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("loading");
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasTriggeredValidation, setHasTriggeredValidation] = useState(false);
 
   const {
     gameState,
@@ -46,7 +45,6 @@ export function useGameStateValidator(
       setWalletAddress(address);
       setSyncStatus("needs-sync");
       setError(null);
-      setHasTriggeredValidation(false); // Reset validation flag for new address
     } else if (address && !walletAddress) {
       // First connection or same address reconnecting - just set the address
       setWalletAddress(address);
@@ -63,7 +61,6 @@ export function useGameStateValidator(
       clearGameState();
       setSyncStatus("needs-sync");
       setError(null);
-      setHasTriggeredValidation(false); // Reset validation flag for new game
     }
   }, [currentGameId, gameState, clearGameState]);
 
@@ -122,7 +119,15 @@ export function useGameStateValidator(
         // Trigger sync from contract
         await syncGameStateFromContract();
 
-        setSyncStatus("synced");
+        // Check if sync was successful by verifying the updated game state
+        const { gameState: updatedGameState } = useGameStore.getState();
+        if (updatedGameState && updatedGameState.gameId === currentGameId) {
+          setSyncStatus("synced");
+        } else {
+          console.error("Sync completed but no valid game state found");
+          setError("Failed to load game data. Please try refreshing.");
+          setSyncStatus("error");
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error occurred");
@@ -140,39 +145,7 @@ export function useGameStateValidator(
     syncGameStateFromContract,
   ]);
 
-  // Auto-validate when dependencies change (including permit availability)
-  useEffect(() => {
-    if (address && currentGameId !== null && isCofheInitialized) {
-      // Check if permit is available before attempting to sync
-      const checkAndValidate = () => {
-        const permitResult = cofhejs?.getPermit();
-        const hasActivePermit = permitResult?.success && permitResult?.data;
-
-        if (hasActivePermit && !hasTriggeredValidation) {
-          console.log("Auto-validation triggered with active permit");
-          setHasTriggeredValidation(true);
-          validateAndSync();
-        } else if (!hasActivePermit) {
-          console.log("Auto-validation skipped - no active permit");
-          setSyncStatus("loading");
-          setHasTriggeredValidation(false); // Reset so it can trigger again when permit becomes available
-        }
-      };
-
-      // Check immediately
-      checkAndValidate();
-
-      // Also check periodically for permit changes (but only trigger validation once)
-      const interval = setInterval(checkAndValidate, 2000);
-      return () => clearInterval(interval);
-    }
-  }, [
-    address,
-    currentGameId,
-    isCofheInitialized,
-    validateAndSync,
-    hasTriggeredValidation,
-  ]); // Include CoFHE initialization status
+  // No auto-validation - validation will be triggered manually by the page component
 
   // Handle sync state changes from other components
   useEffect(() => {
@@ -181,15 +154,10 @@ export function useGameStateValidator(
     }
   }, [isGameStateSynced, syncStatus]);
 
-  const manualValidateAndSync = useCallback(() => {
-    setHasTriggeredValidation(false); // Reset flag to allow manual validation
-    validateAndSync();
-  }, [validateAndSync]);
-
   return {
     syncStatus,
     isValidating,
     error,
-    validateAndSync: manualValidateAndSync,
+    validateAndSync,
   };
 }

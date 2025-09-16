@@ -112,23 +112,31 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
   );
 
   const fetchPlayerGameState = useCallback(() => {
-    if (!address) return null;
+    if (!address) {
+      console.log("No address provided for fetchPlayerGameState");
+      return null;
+    }
 
     if (!playerGameStateData) {
+      console.log("No player game state data available");
       return null;
     }
 
     const result = playerGameStateData as [bigint, boolean];
 
     if (!Array.isArray(result) || result.length !== 2) {
+      console.error("Invalid player game state data format:", result);
       return null;
     }
 
     const [currentAttempt, hasWon] = result;
-    return {
+    const playerState = {
       currentAttempt: Number(currentAttempt),
       hasWon: Boolean(hasWon),
     };
+
+    console.log("Fetched player state:", playerState);
+    return playerState;
   }, [address, playerGameStateData]);
 
   const rebuildGameStateFromContract = useCallback(
@@ -236,7 +244,21 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
         setGameState(rebuiltGameState);
         setGameStateSynced(true);
       } catch (error) {
-        // Silent error handling
+        console.error("Error rebuilding game state:", error);
+
+        // Create a default game state even if rebuild fails
+        const defaultGameState = {
+          gameId: targetGameId,
+          currentAttempt: playerState.currentAttempt,
+          guesses: [],
+          hasWon: playerState.hasWon,
+          isGameComplete: playerState.hasWon || playerState.currentAttempt >= 6,
+          maxAttempts: 6,
+        };
+
+        console.log("Setting default game state due to rebuild error");
+        setGameState(defaultGameState);
+        setGameStateSynced(true);
       }
     },
     [address, readAttempt, setGameState, setGameStateSynced, unsealValue]
@@ -266,7 +288,8 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
         setGameStateSynced(true);
       }
     } catch (error) {
-      // Silent error handling
+      console.error("Error syncing game state:", error);
+      // Don't throw - let the validator handle the error state
     }
   }, [
     address,

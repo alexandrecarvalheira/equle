@@ -47,6 +47,17 @@ export function NumberleGame({
   // Game state management
   const { gameState } = useGameStore();
 
+  // Validate game state
+  if (gameState && (!gameState.guesses || !Array.isArray(gameState.guesses))) {
+    console.error("Invalid game state detected:", gameState);
+    // Return a loading state or error state
+    return (
+      <div className="text-center text-white p-8">
+        <p>Game state corrupted. Please refresh the page.</p>
+      </div>
+    );
+  }
+
   // Game synchronization hook - only need processTransactionSuccess for handling completed transactions
   const { processTransactionSuccess } = useGameSync(address, propGameId);
 
@@ -169,9 +180,16 @@ export function NumberleGame({
     const displayBoard: Tile[][] = [];
 
     // Fill completed rows from gameState
-    if (gameState?.guesses) {
+    if (gameState?.guesses && Array.isArray(gameState.guesses)) {
       for (let i = 0; i < gameState.guesses.length; i++) {
         const guess = gameState.guesses[i];
+
+        // Validate guess data
+        if (!guess || !guess.equation || !Array.isArray(guess.feedback)) {
+          console.warn(`Invalid guess data at index ${i}:`, guess);
+          continue;
+        }
+
         const row: Tile[] = [];
 
         for (let j = 0; j < EQUATION_LENGTH; j++) {

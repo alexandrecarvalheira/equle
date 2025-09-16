@@ -18,75 +18,50 @@ import { GameSyncError } from "./components/GameSyncError";
 import { VirtualKeyboardSkeleton } from "./components/VirtualKeyboardSkeleton";
 import { FHEModal } from "./components/FHEModal";
 import { useEffect, useState } from "react";
-import { useCofhe } from "./hooks/useCofhe";
-import { cofhejs } from "cofhejs/web";
+import { usePermit } from "./hooks/usePermit";
 
 export default function Home() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { address, isConnected } = useAccount();
   const { isInitialized: isCofheInitialized } = useCofheStore();
-  const {
-    error: cofheError,
-    permit,
-    createPermit,
-    isGeneratingPermit,
-  } = useCofhe();
   const { gameId: currentGameId } = useCurrentGameId();
-  const { syncStatus, isValidating, error, validateAndSync } =
-    useGameStateValidator(address, currentGameId);
+  const {
+    hasValidPermit,
+    isGeneratingPermit,
+    error: permitError,
+    generatePermit,
+  } = usePermit(currentGameId);
+  const {
+    syncStatus,
+    isValidating,
+    error: syncError,
+    validateAndSync,
+  } = useGameStateValidator(address, currentGameId);
   const [showFHE, setShowFHE] = useState(false);
-  const [permitGenerated, setPermitGenerated] = useState(false);
 
-  // Update permitGenerated state when permit exists
+  // Trigger sync when permit becomes available
   useEffect(() => {
-    // Check for active permit from cofhejs directly
-    const checkForActivePermit = () => {
-      if (!isCofheInitialized) return;
-
-      const activePermitResult = cofhejs?.getPermit();
-      const hasActivePermit =
-        activePermitResult?.success && activePermitResult?.data;
-
-      if (hasActivePermit && !permitGenerated) {
-        console.log("Active permit found, setting permitGenerated to true");
-        setPermitGenerated(true);
-      }
-    };
-
-    // Check immediately when CoFHE is initialized
-    checkForActivePermit();
-
-    // Also check periodically in case permit state changes
-    const interval = setInterval(checkForActivePermit, 1000);
-
-    return () => clearInterval(interval);
-  }, [permitGenerated, isCofheInitialized]);
+    if (
+      hasValidPermit &&
+      isCofheInitialized &&
+      address &&
+      currentGameId !== null
+    ) {
+      console.log("Valid permit available, triggering sync");
+      validateAndSync();
+    }
+  }, [
+    hasValidPermit,
+    isCofheInitialized,
+    address,
+    currentGameId,
+    validateAndSync,
+  ]);
 
   const handleGeneratePermit = async () => {
-    if (!isCofheInitialized || !address) return;
-
-    const permitName = `equle${currentGameId || ""}`;
-
-    const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() + 1); // 1 day expiration
-
-    const result = await createPermit({
-      type: "self",
-      name: permitName,
-      issuer: address,
-      expiration: Math.round(expirationDate.getTime() / 1000),
-    });
-
-    if (result?.success) {
-      console.log("Permit created successfully, updating state");
-      setPermitGenerated(true);
-
-      // Force a sync validation check after permit generation
-      setTimeout(() => {
-        if (validateAndSync) {
-          validateAndSync();
-        }
-      }, 500);
+    const result = await generatePermit();
+    if (!result.success) {
+      console.error("Failed to generate permit:", result.error);
     }
   };
 
@@ -124,7 +99,7 @@ export default function Home() {
             <div className="mt-8">
               {!isConnected ? (
                 <DisconnectedScreen />
-              ) : !isCofheInitialized || !permitGenerated ? (
+              ) : !isCofheInitialized || !hasValidPermit ? (
                 <>
                   <MonitorFrame
                     screenInsets={{ top: 6, right: 6, bottom: 8, left: 6 }}
@@ -141,9 +116,9 @@ export default function Home() {
                             : "A permit is required to authenticate your identity and grant access to your encrypted data."}
                         </p>
 
-                        {cofheError && (
+                        {permitError && (
                           <p className="text-red-400 text-xs mt-2 font-visitor1 uppercase tracking-widest max-w-md">
-                            Error: {cofheError.message}
+                            Error: {permitError}
                           </p>
                         )}
                       </div>
@@ -151,7 +126,7 @@ export default function Home() {
                       {isCofheInitialized && (
                         <button
                           onClick={handleGeneratePermit}
-                          disabled={permitGenerated || isGeneratingPermit}
+                          disabled={hasValidPermit || isGeneratingPermit}
                           className="mt-4 mb-2 inline-flex items-center gap-2 px-6 py-2 text-white uppercase tracking-widest transition-opacity duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                           style={{
                             backgroundColor: "transparent",
@@ -166,7 +141,7 @@ export default function Home() {
                               <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
                               <span>Generating...</span>
                             </>
-                          ) : permitGenerated ? (
+                          ) : hasValidPermit ? (
                             <>
                               <span>✓ Permit Generated</span>
                             </>
@@ -190,16 +165,16 @@ export default function Home() {
                 </>
               ) : syncStatus === "loading" || syncStatus === "needs-sync" ? (
                 <>
-                  <MonitorFrame>
-                    <div className="px-4 w-full">
-                      <GameSyncLoading
-                        message={
-                          isValidating
-                            ? "Rebuilding game progress..."
-                            : "Synchronizing with blockchain..."
-                        }
-                      />
-                    </div>
+                  <MonitorFrame
+                    screenInsets={{ top: 6, right: 6, bottom: 8, left: 6 }}
+                  >
+                    <GameSyncLoading
+                      message={
+                        isValidating
+                          ? "Rebuilding game progress..."
+                          : "Synchronizing with blockchain..."
+                      }
+                    />
                   </MonitorFrame>
                   <div className="mt-6 flex justify-center">
                     <VirtualKeyboardSkeleton />
@@ -208,7 +183,7 @@ export default function Home() {
               ) : syncStatus === "error" ? (
                 <MonitorFrame>
                   <GameSyncError
-                    error={error || "Failed to sync game state"}
+                    error={syncError || "Failed to sync game state"}
                     onRetry={validateAndSync}
                   />
                 </MonitorFrame>
