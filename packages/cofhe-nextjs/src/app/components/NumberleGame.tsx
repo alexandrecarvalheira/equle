@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAccount, useWaitForTransactionReceipt } from "wagmi";
+import { useComposeCast } from "@coinbase/onchainkit/minikit";
 import { useGameStore } from "../store/gameStore";
 import { useDecryptEquation } from "../hooks/useDecryptEquation";
 import { useGameSync } from "../hooks/useGameSync";
@@ -46,6 +47,9 @@ export function NumberleGame({
 
   // Game state management
   const { gameState } = useGameStore();
+
+  // Compose cast for sharing
+  const { composeCast } = useComposeCast();
 
   // Validate game state
   if (gameState && (!gameState.guesses || !Array.isArray(gameState.guesses))) {
@@ -185,6 +189,16 @@ export function NumberleGame({
         window.location.reload();
       }, 2000);
     }
+  };
+
+  const handleShareResult = () => {
+    const gameId = gameState?.gameId || propGameId || 0;
+    const shareText = `I just won Equle Game ${gameId}! Can you beat my score?`;
+
+    composeCast({
+      text: shareText,
+      embeds: ["https://equle.vercel.app/"],
+    });
   };
 
   const handleKeyPress = (key: string) => {
@@ -610,6 +624,19 @@ export function NumberleGame({
               </div>
             )}
 
+            {/* Share Button - shown when game is won and finalized */}
+            {gameState?.hasWon && !shouldShowFinalizeButton && (
+              <div className="mb-4 text-center">
+                <button
+                  onClick={handleShareResult}
+                  className="px-4 py-2 bg-transparent text-white uppercase tracking-widest flex items-center justify-center gap-2 font-bold mx-auto border-2 border-dotted border-cyan-400 hover:opacity-80 transition-opacity duration-200"
+                >
+                  <span>Share Victory</span>
+                  <img src="/button_icon.svg" alt="icon" className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+
             {/* Finalize Message */}
             {finalizeMessage && !shouldShowFinalizeButton && (
               <div className="mb-4 text-center">
@@ -746,8 +773,8 @@ export function NumberleGame({
           </div>
         </div>
 
-        {/* Win/Loss Message - shown when game is over */}
-        {gameState?.isGameComplete && (
+        {/* Win/Loss Message - shown when game is over but NOT when finalize button is shown */}
+        {gameState?.isGameComplete && !shouldShowFinalizeButton && (
           <div className="mt-6 text-center relative z-10">
             {gameState?.hasWon ? (
               <div className="mb-4">

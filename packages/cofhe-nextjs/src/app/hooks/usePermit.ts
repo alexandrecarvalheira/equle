@@ -4,10 +4,12 @@ import { useState, useEffect, useCallback } from "react";
 import { useAccount } from "wagmi";
 import { cofhejs, permitStore } from "cofhejs/web";
 import { useCofheStore } from "../store/cofheStore";
+import { useGameStore } from "../store/gameStore";
 
 export function usePermit(currentGameId?: number | null) {
   const { address, chainId } = useAccount();
   const { isInitialized: isCofheInitialized } = useCofheStore();
+  const { clearGameState } = useGameStore();
 
   const [hasValidPermit, setHasValidPermit] = useState(false);
   const [isGeneratingPermit, setIsGeneratingPermit] = useState(false);
@@ -108,14 +110,17 @@ export function usePermit(currentGameId?: number | null) {
       setHasValidPermit(false);
       setError(null);
 
-      console.log("Permit removed successfully");
+      // Clear game state as well
+      clearGameState();
+
+      console.log("Permit and game state removed successfully");
       return true;
     } catch (error) {
       console.error("Error removing permit:", error);
       setError("Failed to remove permit");
       return false;
     }
-  }, [isCofheInitialized, chainId, address]);
+  }, [isCofheInitialized, chainId, address, clearGameState]);
 
   return {
     hasValidPermit,
