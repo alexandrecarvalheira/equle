@@ -2,8 +2,19 @@
 
 import { useAccount, useDisconnect } from "wagmi";
 import { CofheStatus } from "./CofheStatus";
-import { Wallet } from "@coinbase/onchainkit/wallet";
-
+import {
+  Name,
+  Identity,
+  Address,
+  Avatar,
+  EthBalance,
+} from "@coinbase/onchainkit/identity";
+import {
+  ConnectWallet,
+  Wallet,
+  WalletDropdown,
+  WalletDropdownDisconnect,
+} from "@coinbase/onchainkit/wallet";
 export function Navbar() {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
@@ -38,7 +49,18 @@ export function Navbar() {
           {/* Right: Wallet */}
           <div className="flex items-center justify-end overflow-visible">
             <div className="relative z-50">
-              <Wallet />
+              <Wallet>
+                <ConnectWallet />
+                <WalletDropdown>
+                  <Identity hasCopyAddressOnClick>
+                    <Avatar />
+                    <Name />
+                    <Address />
+                    <EthBalance />
+                  </Identity>
+                  <WalletDropdownDisconnect />
+                </WalletDropdown>
+              </Wallet>
             </div>
           </div>
         </div>

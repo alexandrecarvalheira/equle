@@ -5,19 +5,27 @@ import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "./wagmi.config";
 import { baseSepolia, base } from "wagmi/chains";
 import { ReactNode } from "react";
-import { MiniKitProvider } from "@coinbase/onchainkit/minikit";
+import { OnchainKitProvider } from "@coinbase/onchainkit";
 const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <MiniKitProvider
+    <OnchainKitProvider
       chain={baseSepolia}
       apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
       config={{
         appearance: {
-          name: "Equle*", // Displayed in modal header
-          mode: "dark", // 'light' | 'dark' | '400'
+          mode: "dark",
         },
+        wallet: {
+          display: "modal",
+          preference: "eoaOnly",
+        },
+      }}
+      miniKit={{
+        enabled: true,
+        autoConnect: true,
+        notificationProxyUrl: undefined,
       }}
     >
       <WagmiProvider config={wagmiConfig}>
@@ -25,6 +33,6 @@ export function Providers({ children }: { children: ReactNode }) {
           {children}
         </QueryClientProvider>
       </WagmiProvider>
-    </MiniKitProvider>
+    </OnchainKitProvider>
   );
 }
