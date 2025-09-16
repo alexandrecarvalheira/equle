@@ -36,5 +36,8 @@ export async function GET() {
       // use only while testing
       noindex: "true",
     }),
+    baseBuilder: {
+      allowedAddresses: ["0x8a261c0b365352AAd3eeB6cfeca9CD1382478b97"],
+    },
   });
 }
