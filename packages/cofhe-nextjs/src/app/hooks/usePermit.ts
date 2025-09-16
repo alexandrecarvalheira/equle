@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAccount } from "wagmi";
-import { cofhejs } from "cofhejs/web";
+import { cofhejs, permitStore } from "cofhejs/web";
 import { useCofheStore } from "../store/cofheStore";
 
 export function usePermit(currentGameId?: number | null) {
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const { isInitialized: isCofheInitialized } = useCofheStore();
 
   const [hasValidPermit, setHasValidPermit] = useState(false);
@@ -76,11 +76,53 @@ export function usePermit(currentGameId?: number | null) {
     }
   }, [isCofheInitialized, checkPermit]);
 
+  // Remove permit function
+  const removePermit = useCallback(async () => {
+    if (!isCofheInitialized || !chainId || !address) {
+      console.log("Cannot remove permit: missing required data");
+      return false;
+    }
+
+    try {
+      // Get current active permit hash
+      const activePermitResult = cofhejs?.getPermit();
+      if (!activePermitResult?.success || !activePermitResult?.data) {
+        console.log("No active permit to remove");
+        return false;
+      }
+
+      // Remove the permit from the store
+      // The permit hash should be available in the permitStore or we can get all permits and find the active one
+      const allPermits = permitStore.getPermits(chainId.toString(), address);
+      if (allPermits && Object.keys(allPermits).length > 0) {
+        // Get the first (and likely only) permit hash
+        const permitHash = Object.keys(allPermits)[0];
+        // Add force flag to allow removal of the last permit
+        permitStore.removePermit(chainId.toString(), address, permitHash, true);
+      } else {
+        console.log("No permits found to remove");
+        return false;
+      }
+
+      // Update local state
+      setHasValidPermit(false);
+      setError(null);
+
+      console.log("Permit removed successfully");
+      return true;
+    } catch (error) {
+      console.error("Error removing permit:", error);
+      setError("Failed to remove permit");
+      return false;
+    }
+  }, [isCofheInitialized, chainId, address]);
+
   return {
     hasValidPermit,
     isGeneratingPermit,
     error,
     generatePermit,
     checkPermit,
+    removePermit,
   };
 }

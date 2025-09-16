@@ -30,6 +30,7 @@ export default function Home() {
     isGeneratingPermit,
     error: permitError,
     generatePermit,
+    removePermit,
   } = usePermit(currentGameId);
   const {
     syncStatus,
@@ -62,6 +63,19 @@ export default function Home() {
     const result = await generatePermit();
     if (!result.success) {
       console.error("Failed to generate permit:", result.error);
+    }
+  };
+
+  const handleRemovePermit = async () => {
+    if (
+      confirm(
+        "Are you sure you want to remove the current permit? You will need to generate a new one to continue playing."
+      )
+    ) {
+      const success = await removePermit();
+      if (success) {
+        console.log("Permit removed successfully");
+      }
     }
   };
 
@@ -201,6 +215,19 @@ export default function Home() {
                   style={{ color: "#0AD9DC" }}
                 >
                   🔐 Why is this game secure? Learn about FHE
+                </button>
+              </div>
+            )}
+
+            {/* Remove Permit Button */}
+            {isConnected && isCofheInitialized && hasValidPermit && (
+              <div className="text-center mt-4">
+                <button
+                  onClick={handleRemovePermit}
+                  className="text-xs underline hover:opacity-80 transition-opacity duration-200"
+                  style={{ color: "#DC3545" }}
+                >
+                  🗑️ Remove Permit
                 </button>
               </div>
             )}
