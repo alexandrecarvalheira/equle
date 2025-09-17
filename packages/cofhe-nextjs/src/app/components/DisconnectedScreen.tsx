@@ -17,7 +17,7 @@ export function DisconnectedScreen() {
                 letterSpacing: 0,
               }}
             >
-              EQUELS
+              EQULE
             </h1>
             <div
               className="mt-2 text-gray-200 uppercase flex items-center justify-center gap-2 font-visitor1 sm:text-xl md:text-2xl lg:text-3xl"

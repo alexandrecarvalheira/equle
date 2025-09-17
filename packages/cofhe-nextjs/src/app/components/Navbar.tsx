@@ -34,7 +34,7 @@ export function Navbar() {
             }}
           >
             <div className="text-white font-visitor1 uppercase text-3xl sm:text-4xl md:text-5xl lg:text-6xl leading-none">
-              Equels
+              Equle
             </div>
             <div className="text-gray-300 font-visitor1 uppercase text-xs sm:text-base leading-none mt-1 flex flex-col items-center justify-center gap-1">
               <span>Powered by</span>
