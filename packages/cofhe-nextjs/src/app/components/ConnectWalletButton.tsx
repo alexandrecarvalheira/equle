@@ -1,6 +1,7 @@
 "use client";
 
 import { useConnect } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
 
 export function ConnectWalletButton({
   fullWidth = false,
@@ -11,7 +12,9 @@ export function ConnectWalletButton({
 
   return (
     <button
-      onClick={() => connect({ connector: connectors[0] })}
+      onClick={() =>
+        connect({ chainId: baseSepolia.id, connector: connectors[0] })
+      }
       className={`inline-flex items-center gap-2 px-6 py-2 text-white uppercase tracking-widest transition-opacity duration-200 hover:opacity-90 ${
         fullWidth ? "w-full justify-center" : ""
       }`}
