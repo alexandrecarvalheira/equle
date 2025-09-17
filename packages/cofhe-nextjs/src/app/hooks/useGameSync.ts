@@ -5,6 +5,7 @@ import { useGameStore } from "../store/gameStore";
 import type { GameState } from "../store/gameStore";
 import { cofhejs, FheTypes } from "cofhejs/web";
 import { analyzeXorResult, extractOriginalEquation } from "../../../utils";
+import { usePlayerAttempt } from "./usePlayerAttempt";
 
 // Helpers kept outside to avoid re-creating on each render
 const mapResultFeedback = (feedback: number): "equal" | "less" | "greater" => {
@@ -43,6 +44,13 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
     functionName: "getPlayerGameState",
     args: address && gameId ? [gameId, address] : undefined,
   });
+
+  // Player attempt hook for refetching attempt data
+  const { refetch: refetchPlayerAttempt } = usePlayerAttempt(
+    address,
+    gameId,
+    gameState?.currentAttempt
+  );
 
   // Imperative attempt reader to avoid multiple reactive hooks
   const readAttempt = useCallback(
@@ -301,107 +309,109 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
     setGameStateSynced,
   ]);
 
+  // Helper function to poll for attempt data using usePlayerAttempt refetch
+  const pollForAttemptData = useCallback(
+    async (
+      attemptIndex: number,
+      maxAttempts: number = 10,
+      delayMs: number = 1000
+    ): Promise<[bigint, bigint, bigint, bigint] | null> => {
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          console.log(
+            `Polling for attempt data (attempt ${attempt + 1}/${maxAttempts})`
+          );
+
+          const result = await refetchPlayerAttempt();
+
+          if (
+            result.data &&
+            Array.isArray(result.data) &&
+            result.data.length === 4
+          ) {
+            const [, , equationXor, encryptedResultFeedback] = result.data as [
+              bigint,
+              bigint,
+              bigint,
+              bigint
+            ];
+
+            // Check if we have valid XOR data
+            if (equationXor && equationXor !== BigInt(0)) {
+              console.log("Valid attempt data found");
+              return result.data as [bigint, bigint, bigint, bigint];
+            }
+          }
+
+          // Wait before next attempt
+          if (attempt < maxAttempts - 1) {
+            console.log(`Waiting ${delayMs}ms before next attempt...`);
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          }
+        } catch (error) {
+          console.error(
+            `Error polling attempt data (attempt ${attempt + 1}):`,
+            error
+          );
+          if (attempt < maxAttempts - 1) {
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          }
+        }
+      }
+
+      console.error("Max polling attempts reached, no valid data found");
+      return null;
+    },
+    [refetchPlayerAttempt]
+  );
+
   const processTransactionSuccess = useCallback(
     async (
       pendingGuess: { equation: string; result: number },
-      currentGameState: GameState,
-      retryCount: number = 0
+      currentGameState: GameState
     ) => {
       if (!pendingGuess || !address || !currentGameState) {
         console.log("Missing required data for processTransactionSuccess");
         return false;
       }
 
-      // Prevent multiple simultaneous processing
-      if (processingRef.current && retryCount === 0) {
+      if (processingRef.current) {
         console.log("Already processing transaction, skipping duplicate call");
         return false;
       }
 
-      if (retryCount === 0) {
-        processingRef.current = true;
-      }
-
-      const MAX_RETRIES = 3;
-      const RETRY_DELAY = 2000; // 2 seconds
+      processingRef.current = true;
 
       try {
-        console.log(
-          `Processing transaction success (attempt ${retryCount + 1}/${
-            MAX_RETRIES + 1
-          })`
-        );
+        console.log("Processing transaction success...");
 
         // Get the last attempt number from current game state
         const lastAttemptIndex = currentGameState.currentAttempt;
 
-        // Read only the specific attempt data to get fresh XOR result
-        const result = await readAttempt(lastAttemptIndex);
+        // Use the polling function to get attempt data
+        const result = await pollForAttemptData(lastAttemptIndex);
 
-        if (!result || !Array.isArray(result) || result.length !== 4) {
-          console.log("Invalid attempt data, checking if we need to retry...");
-
-          // If data is not available yet and we haven't reached max retries, wait and retry
-          if (retryCount < MAX_RETRIES) {
-            console.log(`No valid data yet, retrying in ${RETRY_DELAY}ms...`);
-            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-            return await processTransactionSuccess(
-              pendingGuess,
-              currentGameState,
-              retryCount + 1
-            );
-          }
-
-          console.error("Max retries reached, giving up");
+        if (!result) {
+          console.error("Failed to get valid attempt data after polling");
+          processingRef.current = false;
           return false;
         }
 
-        // We only need the XOR result (third element) for color feedback
+        // Extract the data we need
         const [, , equationXor, encryptedResultFeedback] = result;
-
-        // Check if we have valid XOR data
-        if (!equationXor || equationXor === BigInt(0)) {
-          console.log("Invalid XOR data, checking if we need to retry...");
-
-          // Retry if the XOR data is not ready yet
-          if (retryCount < MAX_RETRIES) {
-            console.log(`XOR data not ready, retrying in ${RETRY_DELAY}ms...`);
-            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-            return await processTransactionSuccess(
-              pendingGuess,
-              currentGameState,
-              retryCount + 1
-            );
-          }
-
-          console.error("Max retries reached for XOR data");
-          return false;
-        }
 
         console.log("Unsealing encrypted feedback data...");
 
-        // Unseal only the XOR and result feedback
+        // Unseal the encrypted data
         const [unsealedXor, unsealedResultFeedback] = await Promise.all([
-          unsealValue(equationXor as bigint, FheTypes.Uint128),
-          unsealValue(encryptedResultFeedback as bigint, FheTypes.Uint8),
+          unsealValue(equationXor, FheTypes.Uint128),
+          unsealValue(encryptedResultFeedback, FheTypes.Uint8),
         ]);
 
         // Check if unsealing was successful
         if (!unsealedXor?.success || !unsealedResultFeedback?.success) {
-          console.log("Unsealing failed, checking if we need to retry...");
-
-          // Retry if unsealing failed (data might not be ready)
-          if (retryCount < MAX_RETRIES) {
-            console.log(`Unsealing failed, retrying in ${RETRY_DELAY}ms...`);
-            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-            return await processTransactionSuccess(
-              pendingGuess,
-              currentGameState,
-              retryCount + 1
-            );
-          }
-
-          console.error("Max retries reached for unsealing");
+          console.error("Failed to unseal encrypted data");
+          processingRef.current = false;
           return false;
         }
 
@@ -409,8 +419,6 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
 
         // Process the XOR result to get color feedback
         const xorValue = BigInt(unsealedXor.data || 0);
-
-        // Analyze XOR to get tile feedback colors
         const cellStates = buildCellStates(xorValue);
 
         const guess = {
@@ -443,38 +451,15 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
         console.log(
           "Successfully processed transaction and updated game state"
         );
-
-        // Reset processing flag on success
-        if (retryCount === 0) {
-          processingRef.current = false;
-        }
-
+        processingRef.current = false;
         return true;
       } catch (error) {
         console.error("Error in processTransactionSuccess:", error);
-
-        // Retry on error if we haven't reached max retries
-        if (retryCount < MAX_RETRIES) {
-          console.log(`Error occurred, retrying in ${RETRY_DELAY}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-          return await processTransactionSuccess(
-            pendingGuess,
-            currentGameState,
-            retryCount + 1
-          );
-        }
-
-        console.error("Max retries reached after error");
-
-        // Reset processing flag on final failure
-        if (retryCount === 0) {
-          processingRef.current = false;
-        }
-
+        processingRef.current = false;
         return false;
       }
     },
-    [address, readAttempt, setGameState, setGameStateSynced, unsealValue]
+    [address, pollForAttemptData, setGameState, setGameStateSynced, unsealValue]
   );
   const api = useMemo(
     () => ({
