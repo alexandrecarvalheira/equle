@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  Avatar,
-  Address,
-  EthBalance,
-  Identity,
-  Name,
-} from "@coinbase/onchainkit/identity";
 import { useAuthenticate, useMiniKit } from "@coinbase/onchainkit/minikit";
-import { ConnectWallet, Wallet } from "@coinbase/onchainkit/wallet";
 import { useState } from "react";
 
 interface SignInResult {
@@ -21,7 +13,6 @@ export function WalletConnect() {
   const { signIn } = useAuthenticate();
   const [user, setUser] = useState<SignInResult | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const { context } = useMiniKit();
 
   const handleAuth = async () => {
     setIsAuthenticating(true);

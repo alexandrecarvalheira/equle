@@ -4,7 +4,6 @@ import localFont from "next/font/local";
 import "./globals.css";
 import "@coinbase/onchainkit/styles.css";
 import { Providers } from "./providers";
-import dynamic from "next/dynamic";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
