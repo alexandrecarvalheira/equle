@@ -296,6 +296,7 @@ export function NumberleGame({
       setTimeout(() => setWarningMessage(""), 3000);
       return;
     }
+    setProcessingStep("encrypting");
 
     // Clear any previous errors
     clearError();
@@ -311,7 +312,6 @@ export function NumberleGame({
       rowIndex: gameState?.currentAttempt || 0,
     };
     setPendingGuess(pendingGuessData);
-    setProcessingStep("encrypting");
 
     // Submit using the hook with success and error callbacks
     const success = await submitGuessToContract(
@@ -624,18 +624,24 @@ export function NumberleGame({
               </div>
             )}
 
-            {/* Share Button - shown when game is won and finalized */}
-            {gameState?.hasWon && !shouldShowFinalizeButton && (
-              <div className="mb-4 text-center">
-                <button
-                  onClick={handleShareResult}
-                  className="px-4 py-2 bg-transparent text-white uppercase tracking-widest flex items-center justify-center gap-2 font-bold mx-auto border-2 border-dotted border-cyan-400 hover:opacity-80 transition-opacity duration-200"
-                >
-                  <span>Share Victory</span>
-                  <img src="/button_icon.svg" alt="icon" className="w-3 h-3" />
-                </button>
-              </div>
-            )}
+            {/* Share Button - shown when game is won and victory has been claimed */}
+            {gameState?.hasWon &&
+              !shouldShowFinalizeButton &&
+              hasDecryptedEquation() && (
+                <div className="mb-4 text-center">
+                  <button
+                    onClick={handleShareResult}
+                    className="px-4 py-2 bg-transparent text-white uppercase tracking-widest flex items-center justify-center gap-2 font-bold mx-auto border-2 border-dotted border-cyan-400 hover:opacity-80 transition-opacity duration-200"
+                  >
+                    <span>Share Victory</span>
+                    <img
+                      src="/button_icon.svg"
+                      alt="icon"
+                      className="w-3 h-3"
+                    />
+                  </button>
+                </div>
+              )}
 
             {/* Finalize Message */}
             {finalizeMessage && !shouldShowFinalizeButton && (

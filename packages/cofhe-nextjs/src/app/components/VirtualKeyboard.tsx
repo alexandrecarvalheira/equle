@@ -68,8 +68,10 @@ export function VirtualKeyboard({
         aria-label={options?.aria || label}
         onClick={onClick}
         disabled={disabled}
-        className={`${containerClasses} flex items-center justify-center select-none ${
-          disabled ? "opacity-60 cursor-not-allowed" : "hover:opacity-90"
+        className={`${containerClasses} flex items-center justify-center select-none transition-all duration-75 ${
+          disabled
+            ? "opacity-60 cursor-not-allowed"
+            : "hover:opacity-90 active:opacity-60 active:translate-y-1"
         }`}
         style={{ color: "#FFFFFF" }}
       >

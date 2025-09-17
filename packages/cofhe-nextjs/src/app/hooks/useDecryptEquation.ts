@@ -55,8 +55,13 @@ export function useDecryptEquation(address?: `0x${string}`) {
 
   // Call DecryptFinalizedEquation when equation is already decrypted
   const decryptFinalizedEquation = async () => {
+    if (!hasDecryptedEquation()) {
+      setFinalizeMessage("Equation not ready yet. Please wait for decryption.");
+      return;
+    }
+
     setIsFinalizingGame(true);
-    setFinalizeMessage("Finalizing win status...");
+    setFinalizeMessage("Claiming victory...");
 
     try {
       // Call DecryptFinalizedEquation to update hasWon status
@@ -69,7 +74,7 @@ export function useDecryptEquation(address?: `0x${string}`) {
 
       // After transaction confirms, check player status will be handled by useEffect
     } catch (error) {
-      setFinalizeMessage("Error finalizing game. Please try again.");
+      setFinalizeMessage("Error claiming victory. Please try again.");
       setTimeout(() => setFinalizeMessage(""), 5000);
       setIsFinalizingGame(false);
     }
@@ -190,15 +195,9 @@ export function useDecryptEquation(address?: `0x${string}`) {
       decryptedEquation !== "0x" &&
       decryptedEquation !== "0x0000000000000000000000000000000000000000"
     ) {
-      setFinalizeMessage("Equation decrypted! Finalizing win status...");
-
-      // Call DecryptFinalizedEquation to update hasWon status
-      writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: "DecryptfinalizedEquation",
-        args: [],
-      });
+      setFinalizeMessage(
+        "Equation decrypted! Click 'Claim Victory' to finalize your win."
+      );
     } else if (
       decryptedEquationError &&
       (isWonButNotFinalized() || isFinalizingGame)
@@ -210,7 +209,6 @@ export function useDecryptEquation(address?: `0x${string}`) {
     decryptedEquationError,
     isWonButNotFinalized(),
     isFinalizingGame,
-    writeContract,
   ]);
 
   // Effect to refetch player status after DecryptFinalizedEquation call
