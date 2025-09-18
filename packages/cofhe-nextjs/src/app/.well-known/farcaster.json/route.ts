@@ -34,7 +34,7 @@ export async function GET() {
       ogDescription: process.env.NEXT_PUBLIC_APP_OG_DESCRIPTION,
       ogImageUrl: process.env.NEXT_PUBLIC_APP_OG_IMAGE,
       // use only while testing
-      noindex: "true",
+      noindex: "false",
     }),
     baseBuilder: {
       allowedAddresses: ["0x8a261c0b365352AAd3eeB6cfeca9CD1382478b97"],
