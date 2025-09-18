@@ -21,7 +21,7 @@ import { useEffect, useState } from "react";
 import { usePermit } from "./hooks/usePermit";
 
 export default function Home() {
-  const { setFrameReady, isFrameReady, context } = useMiniKit();
+  const { setFrameReady, isFrameReady } = useMiniKit();
   const { address, isConnected } = useAccount();
   const { isInitialized: isCofheInitialized } = useCofheStore();
   const { gameId: currentGameId } = useCurrentGameId();
@@ -105,96 +105,92 @@ export default function Home() {
             )}
 
             <div className="mt-8">
-              {!isConnected ? (
-                <DisconnectedScreen />
-              ) : !isCofheInitialized || !hasValidPermit ? (
+              {!isConnected ||
+              !isCofheInitialized ||
+              !hasValidPermit ||
+              syncStatus !== "synced" ? (
                 <>
                   <MonitorFrame
                     screenInsets={{ top: 6, right: 6, bottom: 8, left: 6 }}
                   >
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-4 py-8 pb-12">
-                      <div className="text-center">
-                        <div className="font-visitor1 uppercase text-white text-lg sm:text-xl tracking-widest px-3 py-2">
-                          {!isCofheInitialized ? "Initializing CoFHE" : ""}
+                    {!isConnected ? (
+                      <DisconnectedScreen />
+                    ) : !isCofheInitialized || !hasValidPermit ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-4 py-8 pb-12">
+                        <div className="text-center">
+                          <div className="font-visitor1 uppercase text-white text-lg sm:text-xl tracking-widest px-3 py-2">
+                            {!isCofheInitialized ? "Initializing CoFHE" : ""}
+                          </div>
+
+                          <p className="text-gray-300 text-xs sm:text-sm mt-3 font-visitor1 uppercase tracking-widest max-w-md">
+                            {!isCofheInitialized
+                              ? "Setting up fully homomorphic encryption for secure gameplay"
+                              : "A permit is required to authenticate your identity and grant access to your encrypted data."}
+                          </p>
+
+                          {permitError && (
+                            <p className="text-red-400 text-xs mt-2 font-visitor1 uppercase tracking-widest max-w-md">
+                              Error: {permitError}
+                            </p>
+                          )}
                         </div>
 
-                        <p className="text-gray-300 text-xs sm:text-sm mt-3 font-visitor1 uppercase tracking-widest max-w-md">
-                          {!isCofheInitialized
-                            ? "Setting up fully homomorphic encryption for secure gameplay"
-                            : "A permit is required to authenticate your identity and grant access to your encrypted data."}
-                        </p>
-
-                        {permitError && (
-                          <p className="text-red-400 text-xs mt-2 font-visitor1 uppercase tracking-widest max-w-md">
-                            Error: {permitError}
-                          </p>
+                        {isCofheInitialized && (
+                          <button
+                            onClick={handleGeneratePermit}
+                            disabled={hasValidPermit || isGeneratingPermit}
+                            className="mt-4 mb-2 inline-flex items-center gap-2 px-6 py-2 text-white uppercase tracking-widest transition-opacity duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{
+                              backgroundColor: "transparent",
+                              borderTop: "2px dotted #0AD9DC",
+                              borderBottom: "2px dotted #0AD9DC",
+                              borderLeft: "none",
+                              borderRight: "none",
+                            }}
+                          >
+                            {isGeneratingPermit ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+                                <span>Generating...</span>
+                              </>
+                            ) : hasValidPermit ? (
+                              <>
+                                <span>✓ Permit Generated</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>Generate Permit</span>
+                                <img
+                                  src="/button_icon.svg"
+                                  alt="icon"
+                                  className="w-3 h-3"
+                                />
+                              </>
+                            )}
+                          </button>
                         )}
                       </div>
+                    ) : syncStatus === "loading" ||
+                      syncStatus === "needs-sync" ? (
+                      <GameSyncLoading
+                        message={
+                          isValidating
+                            ? "Rebuilding game progress..."
+                            : "Synchronizing with blockchain..."
+                        }
+                      />
+                    ) : (
+                      <GameSyncError
+                        error={syncError || "Failed to sync game state"}
+                        onRetry={validateAndSync}
+                      />
+                    )}
+                  </MonitorFrame>
 
-                      {isCofheInitialized && (
-                        <button
-                          onClick={handleGeneratePermit}
-                          disabled={hasValidPermit || isGeneratingPermit}
-                          className="mt-4 mb-2 inline-flex items-center gap-2 px-6 py-2 text-white uppercase tracking-widest transition-opacity duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                          style={{
-                            backgroundColor: "transparent",
-                            borderTop: "2px dotted #0AD9DC",
-                            borderBottom: "2px dotted #0AD9DC",
-                            borderLeft: "none",
-                            borderRight: "none",
-                          }}
-                        >
-                          {isGeneratingPermit ? (
-                            <>
-                              <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
-                              <span>Generating...</span>
-                            </>
-                          ) : hasValidPermit ? (
-                            <>
-                              <span>✓ Permit Generated</span>
-                            </>
-                          ) : (
-                            <>
-                              <span>Generate Permit</span>
-                              <img
-                                src="/button_icon.svg"
-                                alt="icon"
-                                className="w-3 h-3"
-                              />
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </MonitorFrame>
                   <div className="mt-6 mx-auto w-fit">
                     <VirtualKeyboardSkeleton />
                   </div>
                 </>
-              ) : syncStatus === "loading" || syncStatus === "needs-sync" ? (
-                <>
-                  <MonitorFrame
-                    screenInsets={{ top: 6, right: 6, bottom: 8, left: 6 }}
-                  >
-                    <GameSyncLoading
-                      message={
-                        isValidating
-                          ? "Rebuilding game progress..."
-                          : "Synchronizing with blockchain..."
-                      }
-                    />
-                  </MonitorFrame>
-                  <div className="mt-6 mx-auto w-fit">
-                    <VirtualKeyboardSkeleton />
-                  </div>
-                </>
-              ) : syncStatus === "error" ? (
-                <MonitorFrame>
-                  <GameSyncError
-                    error={syncError || "Failed to sync game state"}
-                    onRetry={validateAndSync}
-                  />
-                </MonitorFrame>
               ) : (
                 <NumberleGame gameId={currentGameId} />
               )}
@@ -221,7 +217,7 @@ export default function Home() {
                   className="text-xs underline hover:opacity-80 transition-opacity duration-200"
                   style={{ color: "#DC3545" }}
                 >
-                  🗑️ Remove Permit
+                  🗑️ Revoke Permit
                 </button>
               </div>
             )}

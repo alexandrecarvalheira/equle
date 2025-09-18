@@ -21,7 +21,6 @@ export function useGameStateValidator(
     walletAddress,
     isGameStateSynced,
     clearGameState,
-    setGameStateSynced,
     setWalletAddress,
   } = useGameStore();
   const { isInitialized: isCofheInitialized } = useCofheStore();

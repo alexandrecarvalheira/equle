@@ -46,7 +46,7 @@ export function NumberleGame({
     });
 
   // Game state management
-  const { gameState } = useGameStore();
+  const { gameState, clearGameState } = useGameStore();
 
   // Compose cast for sharing
   const { composeCast } = useComposeCast();
@@ -171,11 +171,10 @@ export function NumberleGame({
         setPendingGuess(null);
         setIsProcessingTransaction(false);
 
-        // Auto-refresh page after failure
-        setWarningMessage("Failed to decrypt feedback. Refreshing page...");
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+        // Clear game state to trigger resync
+        clearGameState();
+        setWarningMessage("Failed to decrypt feedback. Rebuilding game state...");
+        setTimeout(() => setWarningMessage(""), 3000);
       }
     } catch (error) {
       console.error("Error in handleTransactionSuccess:", error);
@@ -183,11 +182,10 @@ export function NumberleGame({
       setPendingGuess(null);
       setIsProcessingTransaction(false);
 
-      // Auto-refresh page after error
-      setWarningMessage("Failed to process transaction. Refreshing page...");
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // Clear game state to trigger resync
+      clearGameState();
+      setWarningMessage("Failed to process transaction. Rebuilding game state...");
+      setTimeout(() => setWarningMessage(""), 3000);
     }
   };
 

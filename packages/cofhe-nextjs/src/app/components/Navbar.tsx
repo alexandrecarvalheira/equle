@@ -1,6 +1,6 @@
 "use client";
 
-import { useAccount, useDisconnect } from "wagmi";
+import { useAccount } from "wagmi";
 import { CofheStatus } from "./CofheStatus";
 import {
   Name,
@@ -16,8 +16,7 @@ import {
   WalletDropdownDisconnect,
 } from "@coinbase/onchainkit/wallet";
 export function Navbar() {
-  const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
+  const { isConnected } = useAccount();
 
   if (!isConnected) return null;
   return (
