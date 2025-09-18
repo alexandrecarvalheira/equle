@@ -7,8 +7,17 @@ import {
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "../../../contract/contract";
 import { useGameStore } from "../store/gameStore";
 
+type EndGameState =
+  | "idle" // No endgame action needed
+  | "can-finalize" // Player won, can finalize game
+  | "finalizing" // Executing finalize transaction
+  | "decrypting" // Waiting for equation decryption
+  | "can-claim" // Equation ready, can claim victory
+  | "claiming" // Executing claim victory transaction
+  | "claimed"; // Victory claimed, can share
+
 export function useDecryptEquation(address?: `0x${string}`) {
-  const [isFinalizingGame, setIsFinalizingGame] = useState(false);
+  const [endGameState, setEndGameState] = useState<EndGameState>("idle");
   const [finalizeMessage, setFinalizeMessage] = useState<string>("");
 
   const { writeContract, data: hash } = useWriteContract();
@@ -19,93 +28,14 @@ export function useDecryptEquation(address?: `0x${string}`) {
   const { gameState, setGameState, setGameStateSynced } = useGameStore();
 
   // Read contract for polling decrypted finalized equation
-  const {
-    data: decryptedEquation,
-    refetch: refetchDecryptedEquation,
-    error: decryptedEquationError,
-  } = useReadContract({
-    address: CONTRACT_ADDRESS as `0x${string}`,
-    abi: CONTRACT_ABI,
-    functionName: "getDecryptedfinalizedEquation",
-    args: [],
-    account: address,
-  });
-
-  // Check if decrypted equation is already available (0n means finalized, ready to claim)
-  const hasDecryptedEquation = (): boolean => {
-    return decryptedEquation !== undefined && decryptedEquation !== null;
-  };
-
-  // Check if the last guess is all correct (all green)
-  const isLastGuessAllCorrect = (): boolean => {
-    if (!gameState?.guesses || gameState.guesses.length === 0) return false;
-    const lastGuess = gameState.guesses[gameState.guesses.length - 1];
-    return lastGuess.feedback.every((feedback) => feedback === "correct");
-  };
-
-  // Check if game is won but not finalized yet
-  const isWonButNotFinalized = (): boolean => {
-    return isLastGuessAllCorrect() && !gameState?.hasWon;
-  };
-
-  // Check if game is already won and we need to claim victory
-  const isWonAndNeedsVictoryClaim = (): boolean => {
-    return !!(gameState?.hasWon && !hasDecryptedEquation());
-  };
-
-  // Call DecryptFinalizedEquation when equation is already decrypted
-  const decryptFinalizedEquation = async () => {
-    if (!hasDecryptedEquation()) {
-      setFinalizeMessage("Equation not ready yet. Please wait for decryption.");
-      return;
-    }
-
-    setIsFinalizingGame(true);
-    setFinalizeMessage("Claiming victory...");
-
-    try {
-      // Call DecryptFinalizedEquation to update hasWon status
-      writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: "DecryptfinalizedEquation",
-        args: [],
-      });
-
-      // After transaction confirms, check player status will be handled by useEffect
-    } catch (error) {
-      setFinalizeMessage("Error claiming victory. Please try again.");
-      setTimeout(() => setFinalizeMessage(""), 5000);
-      setIsFinalizingGame(false);
-    }
-  };
-
-  // Finalize game when player has won
-  const finalizeGame = async () => {
-    if (!address) {
-      setFinalizeMessage("Wallet not connected");
-      return;
-    }
-
-    setIsFinalizingGame(true);
-    setFinalizeMessage("Finalizing game...");
-
-    try {
-      // Call finalizeGame on the contract
-      writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: "finalizeGame",
-        args: [],
-      });
-
-      // Wait for transaction confirmation, then start polling for decrypted equation
-    } catch (error) {
-      setFinalizeMessage("Error finalizing game. Please try again.");
-      setTimeout(() => setFinalizeMessage(""), 5000);
-      setIsFinalizingGame(false);
-    }
-  };
+  const { data: decryptedEquation, refetch: refetchDecryptedEquation } =
+    useReadContract({
+      address: CONTRACT_ADDRESS as `0x${string}`,
+      abi: CONTRACT_ABI,
+      functionName: "getDecryptedfinalizedEquation",
+      args: [],
+      account: address,
+    });
 
   // Read player game state
   const { refetch: refetchPlayerGameState } = useReadContract({
@@ -118,7 +48,136 @@ export function useDecryptEquation(address?: `0x${string}`) {
     },
   });
 
-  // Check if player has won on-chain and update game state
+  // Check if decrypted equation is available
+  const hasDecryptedEquation = (): boolean => {
+    return decryptedEquation !== undefined && decryptedEquation !== null;
+  };
+
+  // Check if the last guess is all correct (all green) - DON'T CHANGE THIS
+  const isLastGuessAllCorrect = (): boolean => {
+    if (!gameState?.guesses || gameState.guesses.length === 0) return false;
+    const lastGuess = gameState.guesses[gameState.guesses.length - 1];
+    return lastGuess.feedback.every((feedback) => feedback === "correct");
+  };
+
+  // Check if game is won but not finalized yet - DON'T CHANGE THIS
+  const isWonButNotFinalized = (): boolean => {
+    return isLastGuessAllCorrect() && !gameState?.hasWon;
+  };
+
+  // STEP 1: Finalize game (already working, don't change)
+  const finalizeGame = async () => {
+    if (!address) {
+      setFinalizeMessage("Wallet not connected");
+      return;
+    }
+
+    setEndGameState("finalizing");
+    setFinalizeMessage("Finalizing game...");
+
+    try {
+      writeContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: CONTRACT_ABI,
+        functionName: "finalizeGame",
+        args: [],
+      });
+    } catch (error) {
+      setFinalizeMessage("Error finalizing game. Please try again.");
+      setTimeout(() => setFinalizeMessage(""), 5000);
+      setEndGameState("can-finalize");
+    }
+  };
+
+  // STEP 3: Claim victory
+  const decryptFinalizedEquation = async () => {
+    setEndGameState("claiming");
+    setFinalizeMessage("Claiming victory...");
+
+    try {
+      writeContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: CONTRACT_ABI,
+        functionName: "DecryptfinalizedEquation",
+        args: [],
+      });
+    } catch (error) {
+      setFinalizeMessage("Error claiming victory. Please try again.");
+      setTimeout(() => setFinalizeMessage(""), 5000);
+      setEndGameState("can-claim");
+    }
+  };
+
+  // Handle transaction confirmations
+  useEffect(() => {
+    if (!isConfirmed) return;
+
+    if (endGameState === "finalizing") {
+      // Step 1 complete → Step 2: Wait for decryption
+      setEndGameState("decrypting");
+      setFinalizeMessage("Decrypting equation...");
+      refetchDecryptedEquation();
+    } else if (endGameState === "claiming") {
+      // Step 3 complete → Step 4: Update win status
+      setFinalizeMessage("Updating win status...");
+      setTimeout(() => {
+        checkPlayerWinStatus();
+      }, 2000);
+    }
+  }, [isConfirmed, endGameState]);
+
+  // Check if equation is decrypted → transition to claim state
+  useEffect(() => {
+    console.log("Checking decrypted equation:", {
+      endGameState,
+      hasDecryptedEquation: hasDecryptedEquation(),
+      decryptedEquation,
+      isValid:
+        decryptedEquation !== "0x" &&
+        decryptedEquation !== "0x0000000000000000000000000000000000000000",
+    });
+
+    if (
+      endGameState === "decrypting" &&
+      hasDecryptedEquation() &&
+      decryptedEquation !== "0x" &&
+      decryptedEquation !== "0x0000000000000000000000000000000000000000"
+    ) {
+      // Step 2 complete → Step 3: Ready to claim
+      console.log("✅ Decrypted equation found! Transitioning to can-claim state");
+      setEndGameState("can-claim");
+      setFinalizeMessage("Equation ready! Claim your victory.");
+    }
+  }, [endGameState, decryptedEquation]);
+
+  // Polling logic for decrypted equation when in decrypting state
+  useEffect(() => {
+    if (endGameState !== "decrypting") return;
+
+    console.log("🔄 Starting polling for decrypted equation...");
+    
+    const pollInterval = setInterval(async () => {
+      console.log("📡 Polling attempt for decrypted equation...");
+      try {
+        const result = await refetchDecryptedEquation();
+        console.log("📡 Poll result:", {
+          data: result.data,
+          hasData: !!result.data,
+          isValid: result.data !== "0x" && result.data !== "0x0000000000000000000000000000000000000000"
+        });
+      } catch (error) {
+        console.error("❌ Error polling for decrypted equation:", error);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    // Cleanup interval when component unmounts or state changes
+    return () => {
+      console.log("🛑 Stopping decrypted equation polling");
+      clearInterval(pollInterval);
+    };
+  }, [endGameState, refetchDecryptedEquation]);
+
+  // Check player win status after claim
   const checkPlayerWinStatus = async (): Promise<void> => {
     if (!address || !gameState) return;
 
@@ -127,141 +186,74 @@ export function useDecryptEquation(address?: `0x${string}`) {
       if (result.data) {
         const [, hasWon] = result.data as [bigint, boolean];
 
-        if (hasWon && !gameState.hasWon) {
-          // Update the game state to reflect the win
-          const updatedGameState = {
-            ...gameState,
-            hasWon: true,
-            isGameComplete: true,
-          };
+        if (hasWon) {
+          // Update game state if needed
+          if (!gameState.hasWon) {
+            const updatedGameState = {
+              ...gameState,
+              hasWon: true,
+              isGameComplete: true,
+            };
+            setGameState(updatedGameState);
+            setGameStateSynced(true);
+          }
 
-          setGameState(updatedGameState);
-          setGameStateSynced(true);
-
-          // Show success message and finish finalization
-          setFinalizeMessage("🎉 Game finalized successfully! 🎉");
+          // Step 4 complete → Ready to share
+          setFinalizeMessage(" Victory claimed successfully! ");
           setTimeout(() => {
             setFinalizeMessage("");
-            setIsFinalizingGame(false);
+            setEndGameState("claimed");
           }, 3000);
-        } else if (hasWon && gameState.hasWon) {
-          // Just show success message and finish finalization
-          setFinalizeMessage("🎉 Victory claimed successfully! 🎉");
-          setTimeout(() => {
-            setFinalizeMessage("");
-            setIsFinalizingGame(false);
-          }, 3000);
-        } else {
         }
       }
     } catch (error) {
       setFinalizeMessage("Error updating win status");
       setTimeout(() => {
         setFinalizeMessage("");
-        setIsFinalizingGame(false);
+        setEndGameState("can-claim");
       }, 3000);
     }
   };
 
-  // Effect to handle finalize game transaction confirmation and refetch decrypted equation
+  // Set initial state based on game state - but don't override active endgame flow
   useEffect(() => {
-    if (isConfirmed && isFinalizingGame && finalizeMessage === "Finalizing game...") {
-      setFinalizeMessage("Decrypting equation...");
-
-      // Start polling for decrypted equation
-      const pollDecryptedEquation = async () => {
-        try {
-          const result = await refetchDecryptedEquation();
-
-          if (result.error) {
-            // The query will automatically retry due to retry: true
-          }
-        } catch (error) {}
-      };
-
-      pollDecryptedEquation();
-    }
-  }, [isConfirmed, isFinalizingGame, finalizeMessage, refetchDecryptedEquation]);
-
-  // Effect to handle when decrypted equation is received - ONLY when player has won
-  useEffect(() => {
-    // Only process decrypted equation if player has actually won
-    if (!isWonButNotFinalized() && !isFinalizingGame) {
+    // Don't override if we're already in an active endgame flow
+    if (endGameState !== "idle") {
+      console.log("🚫 Skipping initial state check - endgame flow already active:", endGameState);
       return;
     }
 
-    if (
-      decryptedEquation &&
-      decryptedEquation !== "0x" &&
-      decryptedEquation !== "0x0000000000000000000000000000000000000000" &&
-      !gameState?.hasWon // Only show this message if victory hasn't been claimed yet
-    ) {
-      setFinalizeMessage("Equation ready! Claim your victory.");
-      setIsFinalizingGame(false); // Allow the button to show
-    } else if (
-      decryptedEquationError &&
-      isFinalizingGame &&
-      (finalizeMessage === "Decrypting equation..." || finalizeMessage.includes("Finalizing game"))
-    ) {
-      // Only show waiting message if we're actually in the process of finalizing
-      if (finalizeMessage !== "Finalizing game...") {
-        setFinalizeMessage("Decrypting equation...");
-      }
-    }
-  }, [
-    decryptedEquation,
-    decryptedEquationError,
-    isWonButNotFinalized(),
-    isFinalizingGame,
-  ]);
-
-  // Effect to refetch player status after DecryptFinalizedEquation call
-  useEffect(() => {
-    if (isConfirmed && finalizeMessage.includes("Finalizing win status")) {
-      setFinalizeMessage("Updating win status...");
-      // Check player status after a short delay
-      setTimeout(() => {
-        checkPlayerWinStatus();
-      }, 2000);
-    }
-  }, [isConfirmed, finalizeMessage]);
-
-  // Effect to check for decrypted equation when player first wins
-  useEffect(() => {
     if (isWonButNotFinalized()) {
-      refetchDecryptedEquation();
+      console.log("🎯 Setting initial state to can-finalize");
+      setEndGameState("can-finalize");
+    } else if (
+      gameState?.hasWon &&
+      gameState?.isGameComplete &&
+      hasDecryptedEquation() &&
+      decryptedEquation !== "0x" &&
+      decryptedEquation !== "0x0000000000000000000000000000000000000000"
+    ) {
+      // Only set to claimed if ALL victory steps have been completed
+      console.log("🏆 Setting initial state to claimed");
+      setEndGameState("claimed");
     }
-  }, [isWonButNotFinalized(), refetchDecryptedEquation]);
-
-  // Effect to check for decrypted equation on component mount/game state load - ONLY when player has won
-  useEffect(() => {
-    const checkDecryptedEquationOnLoad = async () => {
-      // Only check if player has actually won but game is not finalized
-      if (gameState && isWonButNotFinalized() && !decryptedEquation) {
-        try {
-          await refetchDecryptedEquation();
-        } catch (error) {}
-      }
-    };
-
-    checkDecryptedEquationOnLoad();
-  }, [gameState, refetchDecryptedEquation, decryptedEquation]);
+  }, [gameState, decryptedEquation, endGameState]);
 
   return {
-    // State
-    isFinalizingGame,
-    finalizeMessage,
-    decryptedEquation,
-
     // Functions
     finalizeGame,
     decryptFinalizedEquation,
     hasDecryptedEquation,
     isWonButNotFinalized,
-    refetchDecryptedEquation,
+
+    // State
+    finalizeMessage,
+    isFinalizingGame:
+      endGameState === "finalizing" || endGameState === "claiming",
 
     // Computed values
-    shouldShowFinalizeButton:
-      isWonButNotFinalized() || isWonAndNeedsVictoryClaim(),
+    shouldShowFinalizeButton: endGameState === "can-finalize",
+    shouldShowClaimButton: endGameState === "can-claim",
+    shouldShowShareButton: endGameState === "claimed",
   };
 }

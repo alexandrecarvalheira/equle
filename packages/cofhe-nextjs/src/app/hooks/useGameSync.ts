@@ -496,9 +496,7 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
           ...currentGameState,
           guesses: [...currentGameState.guesses, guess],
           currentAttempt: currentGameState.currentAttempt + 1,
-          hasWon:
-            cellStates.every((f) => f === "correct") &&
-            guess.resultFeedback === "equal",
+          hasWon: currentGameState.hasWon, // Only set hasWon from contract, not local calculation
           isGameComplete:
             (cellStates.every((f) => f === "correct") &&
               guess.resultFeedback === "equal") ||

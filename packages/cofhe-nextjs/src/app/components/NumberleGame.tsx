@@ -73,6 +73,8 @@ export function NumberleGame({
     decryptFinalizedEquation,
     hasDecryptedEquation,
     shouldShowFinalizeButton,
+    shouldShowClaimButton,
+    shouldShowShareButton,
   } = useDecryptEquation(address);
 
   const [pendingGuess, setPendingGuess] = useState<{
@@ -526,8 +528,8 @@ export function NumberleGame({
               </div>
             )}
 
-            {/* Winning Message and Finalize Button */}
-            {shouldShowFinalizeButton && (
+            {/* Winning Message and Finalize/Claim Button */}
+            {(shouldShowFinalizeButton || shouldShowClaimButton) && (
               <div className="mb-4 text-center">
                 {/* Branded win banner */}
                 <div className="mb-3">
@@ -552,14 +554,14 @@ export function NumberleGame({
                 {!isFinalizingGame ? (
                   <button
                     onClick={
-                      hasDecryptedEquation()
+                      shouldShowClaimButton
                         ? decryptFinalizedEquation
                         : finalizeGame
                     }
                     className="px-4 py-2 bg-white text-black uppercase tracking-widest flex items-center justify-center gap-2 font-bold mx-auto"
                   >
                     <span>
-                      {hasDecryptedEquation()
+                      {shouldShowClaimButton
                         ? "Claim Victory"
                         : "Finalize Game"}
                     </span>
@@ -581,10 +583,8 @@ export function NumberleGame({
               </div>
             )}
 
-            {/* Share Button - shown when game is won and victory has been claimed */}
-            {gameState?.hasWon &&
-              !shouldShowFinalizeButton &&
-              hasDecryptedEquation() && (
+            {/* Share Button - shown when victory has been claimed */}
+            {shouldShowShareButton && (
                 <div className="mb-4 text-center">
                   <button
                     onClick={handleShareResult}
@@ -736,8 +736,8 @@ export function NumberleGame({
           </div>
         </div>
 
-        {/* Win/Loss Message - shown when game is over but NOT when finalize button is shown */}
-        {gameState?.isGameComplete && !shouldShowFinalizeButton && (
+        {/* Win/Loss Message - shown when game is over but NOT when finalize/claim button is shown */}
+        {gameState?.isGameComplete && !shouldShowFinalizeButton && !shouldShowClaimButton && (
           <div className="mt-6 text-center relative z-10">
             {gameState?.hasWon ? (
               <div className="mb-4">
