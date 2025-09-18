@@ -56,7 +56,7 @@ export default function Home() {
     isCofheInitialized,
     address,
     currentGameId,
-    validateAndSync,
+    // validateAndSync removed to prevent infinite loops due to its changing dependencies
   ]);
 
   const handleGeneratePermit = async () => {

@@ -173,7 +173,9 @@ export function NumberleGame({
 
         // Clear game state to trigger resync
         clearGameState();
-        setWarningMessage("Failed to decrypt feedback. Rebuilding game state...");
+        setWarningMessage(
+          "Failed to decrypt feedback. Rebuilding game state..."
+        );
         setTimeout(() => setWarningMessage(""), 3000);
       }
     } catch (error) {
@@ -184,7 +186,9 @@ export function NumberleGame({
 
       // Clear game state to trigger resync
       clearGameState();
-      setWarningMessage("Failed to process transaction. Rebuilding game state...");
+      setWarningMessage(
+        "Failed to process transaction. Rebuilding game state..."
+      );
       setTimeout(() => setWarningMessage(""), 3000);
     }
   };
@@ -337,19 +341,6 @@ export function NumberleGame({
     }
   };
 
-  const getTileStyle = (state: TileState): string => {
-    switch (state) {
-      case "correct":
-        return "bg-green-500 text-white";
-      case "present":
-        return "bg-yellow-500 text-white";
-      case "absent":
-        return "bg-gray-500 text-white";
-      default:
-        return "bg-white text-black";
-    }
-  };
-
   const getKeyboardFeedback = (): Record<string, KeyFeedback> => {
     const feedback: Record<string, KeyFeedback> = {};
 
@@ -383,36 +374,6 @@ export function NumberleGame({
     });
 
     return feedback;
-  };
-
-  const getResultTileStyle = (rowIndex: number): string => {
-    const baseStyle =
-      "w-12 h-12 rounded flex items-center justify-center text-lg font-bold transition-colors duration-300";
-
-    // For completed rows, get from gameState
-    if (gameState?.guesses && rowIndex < gameState.guesses.length) {
-      const guess = gameState.guesses[rowIndex];
-
-      // Color based on result feedback
-      if (guess.resultFeedback === "equal") {
-        return `${baseStyle} bg-green-500 text-white`; // Green for correct
-      } else if (guess.resultFeedback === "less") {
-        return `${baseStyle} bg-cyan-400 text-white`; // Blue for too low
-      } else if (guess.resultFeedback === "greater") {
-        return `${baseStyle} bg-red-400 text-white`; // Red for too high
-      }
-    }
-
-    // For current row (if user is typing), show neutral style
-    if (
-      rowIndex === (gameState?.currentAttempt || 0) &&
-      currentInput.length === EQUATION_LENGTH
-    ) {
-      return `${baseStyle} bg-gray-400 text-white`;
-    }
-
-    // Default empty state
-    return `${baseStyle} bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500`;
   };
 
   const getResultDisplay = (
@@ -584,9 +545,7 @@ export function NumberleGame({
                     </span>
                   </div>
                   <div className="mt-2 text-xs sm:text-sm text-gray-300 font-mono uppercase tracking-widest">
-                    {hasDecryptedEquation()
-                      ? "Equation is ready! Click to finalize your victory."
-                      : 'Click "Finalize Game" to claim your victory and reveal the solution!'}
+                    {hasDecryptedEquation()}
                   </div>
                 </div>
 

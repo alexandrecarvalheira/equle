@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef } from "react";
-import { usePublicClient, useReadContract } from "wagmi";
+import { useCallback, useMemo, useRef, useEffect, useState } from "react";
+import { usePublicClient, useReadContract, useChainId, useAccount } from "wagmi";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "../../../contract/contract";
 import { useGameStore } from "../store/gameStore";
 import type { GameState } from "../store/gameStore";
@@ -30,6 +30,60 @@ const buildCellStates = (
     }
   }
   return cellStates;
+};
+
+// Hook for refetching player attempt data with automatic retry and delay
+export const useRefetchPlayerAttempt = (attemptIndex: number, enabled: boolean = true) => {
+  const chain = useChainId();
+  const { address: account } = useAccount();
+  const { refetch: refetchPlayerAttempt } = usePlayerAttempt(account, attemptIndex);
+  const lastFetchTime = useRef<number>(0);
+  const [attemptData, setAttemptData] = useState<[bigint, bigint, bigint, bigint] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!enabled || !account) return;
+
+    const now = Date.now();
+    if (now - lastFetchTime.current < 2000) return; // 2 second minimum interval
+
+    const fetchAttemptData = async () => {
+      if (isLoading) return;
+      
+      setIsLoading(true);
+      
+      try {
+        // Wait 2 seconds on first try
+        if (lastFetchTime.current === 0) {
+          console.log("Initial attempt data fetch - waiting 2 seconds...");
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        lastFetchTime.current = now;
+        
+        console.log(`Fetching attempt data for index ${attemptIndex}`);
+        const result = await refetchPlayerAttempt();
+        
+        if (result.data && Array.isArray(result.data) && result.data.length === 4) {
+          const [, , equationXor, encryptedResultFeedback] = result.data as [bigint, bigint, bigint, bigint];
+          
+          // Check if we have valid XOR data
+          if (equationXor && equationXor !== BigInt(0)) {
+            console.log("Valid attempt data found");
+            setAttemptData(result.data as [bigint, bigint, bigint, bigint]);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching attempt data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAttemptData();
+  }, [account, chain, attemptIndex, enabled, refetchPlayerAttempt, isLoading]);
+
+  return { attemptData, isLoading };
 };
 
 export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
@@ -309,7 +363,7 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
     setGameStateSynced,
   ]);
 
-  // Helper function to poll for attempt data using usePlayerAttempt refetch
+  // Enhanced helper function to poll for attempt data with better retry logic
   const pollForAttemptData = useCallback(
     async (
       attemptIndex: number,
@@ -322,6 +376,12 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
             `Polling for attempt data (attempt ${attempt + 1}/${maxAttempts})`
           );
 
+          // Add 2-second delay on first attempt
+          if (attempt === 0) {
+            console.log("Initial polling attempt - waiting 2 seconds...");
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+
           const result = await refetchPlayerAttempt();
 
           if (
@@ -329,7 +389,7 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
             Array.isArray(result.data) &&
             result.data.length === 4
           ) {
-            const [, , equationXor, encryptedResultFeedback] = result.data as [
+            const [, , equationXor] = result.data as [
               bigint,
               bigint,
               bigint,
@@ -343,7 +403,7 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
             }
           }
 
-          // Wait before next attempt
+          // Wait before next attempt (but not after the last one)
           if (attempt < maxAttempts - 1) {
             console.log(`Waiting ${delayMs}ms before next attempt...`);
             await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -353,6 +413,7 @@ export function useGameSync(address?: `0x${string}`, gameId?: number | null) {
             `Error polling attempt data (attempt ${attempt + 1}):`,
             error
           );
+          // Wait before retrying on error (but not after the last attempt)
           if (attempt < maxAttempts - 1) {
             await new Promise((resolve) => setTimeout(resolve, delayMs));
           }

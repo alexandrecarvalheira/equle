@@ -10,20 +10,12 @@ export function useGuessSubmission() {
 
   const { writeContract, data: hash, error: writeError, reset } = useWriteContract();
 
-  // Handle writeContract errors (like user cancellation)
+  // Handle writeContract errors - show the actual error message from wagmi
   useEffect(() => {
     if (writeError) {
       console.error("WriteContract error:", writeError);
       setIsSubmitting(false);
-      
-      // Check if it's a user rejection
-      if (writeError.message?.includes('User rejected') || 
-          writeError.message?.includes('rejected') ||
-          writeError.message?.includes('denied')) {
-        setSubmissionError("Transaction cancelled by user");
-      } else {
-        setSubmissionError("Transaction failed. Please try again.");
-      }
+      setSubmissionError(writeError.message || "Transaction failed");
     }
   }, [writeError]);
 

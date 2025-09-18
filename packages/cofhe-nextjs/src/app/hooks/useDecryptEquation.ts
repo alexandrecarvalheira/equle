@@ -165,8 +165,8 @@ export function useDecryptEquation(address?: `0x${string}`) {
 
   // Effect to handle finalize game transaction confirmation and refetch decrypted equation
   useEffect(() => {
-    if (isConfirmed && isFinalizingGame) {
-      setFinalizeMessage("Waiting for equation decryption...");
+    if (isConfirmed && isFinalizingGame && finalizeMessage === "Finalizing game...") {
+      setFinalizeMessage("Decrypting equation...");
 
       // Start polling for decrypted equation
       const pollDecryptedEquation = async () => {
@@ -181,7 +181,7 @@ export function useDecryptEquation(address?: `0x${string}`) {
 
       pollDecryptedEquation();
     }
-  }, [isConfirmed, isFinalizingGame, refetchDecryptedEquation]);
+  }, [isConfirmed, isFinalizingGame, finalizeMessage, refetchDecryptedEquation]);
 
   // Effect to handle when decrypted equation is received - ONLY when player has won
   useEffect(() => {
@@ -193,16 +193,20 @@ export function useDecryptEquation(address?: `0x${string}`) {
     if (
       decryptedEquation &&
       decryptedEquation !== "0x" &&
-      decryptedEquation !== "0x0000000000000000000000000000000000000000"
+      decryptedEquation !== "0x0000000000000000000000000000000000000000" &&
+      !gameState?.hasWon // Only show this message if victory hasn't been claimed yet
     ) {
-      setFinalizeMessage(
-        "Equation decrypted! Click 'Claim Victory' to finalize your win."
-      );
+      setFinalizeMessage("Equation ready! Claim your victory.");
+      setIsFinalizingGame(false); // Allow the button to show
     } else if (
       decryptedEquationError &&
-      (isWonButNotFinalized() || isFinalizingGame)
+      isFinalizingGame &&
+      (finalizeMessage === "Decrypting equation..." || finalizeMessage.includes("Finalizing game"))
     ) {
-      setFinalizeMessage("Waiting for equation decryption...");
+      // Only show waiting message if we're actually in the process of finalizing
+      if (finalizeMessage !== "Finalizing game...") {
+        setFinalizeMessage("Decrypting equation...");
+      }
     }
   }, [
     decryptedEquation,
