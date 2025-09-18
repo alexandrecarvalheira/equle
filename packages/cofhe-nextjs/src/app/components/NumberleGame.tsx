@@ -736,42 +736,53 @@ export function NumberleGame({
           </div>
         </div>
 
-        {/* Win/Loss Message - shown when game is over but NOT when finalize/claim button is shown */}
-        {gameState?.isGameComplete && !shouldShowFinalizeButton && !shouldShowClaimButton && (
+        {/* Loss Message - shown only when max attempts reached without winning */}
+        {gameState?.isGameComplete && 
+         !gameState?.hasWon && 
+         gameState?.currentAttempt >= (gameState?.maxAttempts || 6) && 
+         !shouldShowFinalizeButton && 
+         !shouldShowClaimButton && (
           <div className="mt-6 text-center relative z-10">
-            {gameState?.hasWon ? (
-              <div className="mb-4">
-                <div
-                  className="inline-block px-4 py-3 text-center"
-                  style={{
-                    color: "#000000",
-                    backgroundColor: "transparent",
-                    borderTop: "2px dotted #0AD9DC",
-                    borderBottom: "2px dotted #0AD9DC",
-                  }}
-                >
-                  <span className="block sm:inline font-mono uppercase tracking-widest text-center">
-                    Congratulations!
-                  </span>
-                </div>
+            <div className="mb-4">
+              <div
+                className="inline-block px-4 py-3 text-center"
+                style={{
+                  color: "#000000",
+                  backgroundColor: "transparent",
+                  borderTop: "2px dotted #0AD9DC",
+                  borderBottom: "2px dotted #0AD9DC",
+                }}
+              >
+                <span className="block sm:inline font-mono uppercase tracking-widest">
+                  Game Over
+                </span>
               </div>
-            ) : (
-              <div className="mb-4">
-                <div
-                  className="inline-block px-4 py-3 text-center"
-                  style={{
-                    color: "#000000",
-                    backgroundColor: "transparent",
-                    borderTop: "2px dotted #0AD9DC",
-                    borderBottom: "2px dotted #0AD9DC",
-                  }}
-                >
-                  <span className="block sm:inline font-mono uppercase tracking-widest">
-                    Game Over
-                  </span>
-                </div>
+            </div>
+          </div>
+        )}
+
+        {/* Win Message - shown only when victory is fully claimed */}
+        {gameState?.hasWon && 
+         gameState?.isGameComplete && 
+         !shouldShowFinalizeButton && 
+         !shouldShowClaimButton && 
+         !shouldShowShareButton && (
+          <div className="mt-6 text-center relative z-10">
+            <div className="mb-4">
+              <div
+                className="inline-block px-4 py-3 text-center"
+                style={{
+                  color: "#000000",
+                  backgroundColor: "transparent",
+                  borderTop: "2px dotted #0AD9DC",
+                  borderBottom: "2px dotted #0AD9DC",
+                }}
+              >
+                <span className="block sm:inline font-mono uppercase tracking-widest text-center">
+                  Congratulations!
+                </span>
               </div>
-            )}
+            </div>
           </div>
         )}
 
