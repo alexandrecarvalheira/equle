@@ -3,6 +3,7 @@ pragma solidity ^0.8.25;
 
 import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./EquleNFT.sol";
 
 
 
@@ -39,11 +40,13 @@ contract Equle is Ownable {
     //STATE VARIABLES
 
     uint256 public immutable startTimestamp;
-    uint256 public constant HOUR = 24 hours;
+    uint256 public constant DAY = 24 hours;
     uint256 public constant MAX_ATTEMPTS = 6;
     euint16 public ZERO;
     euint16 public ONE;
     euint16 public TWO;
+    
+    EquleNFT public equleNFT;
 
     struct AttemptData {
         euint128 equationGuess;
@@ -89,6 +92,12 @@ contract Equle is Ownable {
         uint8 totalAttempts
     );
 
+    event NFTMinted(
+        address indexed player,
+        uint256 indexed gameId,
+        uint8 attempts
+    );
+
 
     constructor() Ownable(msg.sender) {
         startTimestamp = block.timestamp;
@@ -98,6 +107,8 @@ contract Equle is Ownable {
         FHE.allowThis(ZERO);
         FHE.allowThis(ONE);
         FHE.allowThis(TWO);
+
+        equleNFT = new EquleNFT(address(this));
     }
 
     //FUNCTIONS
@@ -203,7 +214,7 @@ contract Equle is Ownable {
         emit GameFinalized(msg.sender, gameId, lastAttempt);
     }
 
-        function getDecryptedfinalizedEquation() public view returns (uint128) {
+    function getDecryptedfinalizedEquation() public view returns (uint128) {
         uint256 gameId = getCurrentGameId();
         
         if (playerStates[gameId][msg.sender].currentAttempt == 0) {
@@ -227,7 +238,7 @@ contract Equle is Ownable {
      * @notice Retrieves the decrypted equation XOR result and determines if player won
      * @dev Checks if the lower 20 bits of the XOR result equal zero (indicating perfect match)
      */
-    function DecryptfinalizedEquation() public {
+    function ClaimVictory() public {
         uint256 gameId = getCurrentGameId();
         
         if (playerStates[gameId][msg.sender].currentAttempt == 0) {
@@ -246,12 +257,19 @@ contract Equle is Ownable {
 
         uint128 mask = (1 << 20) - 1; // Creates mask 0x000FFFFF (20 bits of 1s)
         uint128 lower20Bits = value & mask;
-        playerStates[gameId][msg.sender].hasWon = (lower20Bits == 0);
+        bool hasWon = (lower20Bits == 0);
+        playerStates[gameId][msg.sender].hasWon = hasWon;
+
+        // Handle NFT minting/updating for victory
+        if (hasWon) {
+            equleNFT.mintOrUpdateNFT(msg.sender, playerStates[gameId][msg.sender].currentAttempt);
+            emit NFTMinted(msg.sender, gameId, playerStates[gameId][msg.sender].currentAttempt);
+        }
 
         emit GameCompleted(
             msg.sender, 
             gameId, 
-            playerStates[gameId][msg.sender].hasWon,
+            hasWon,
             playerStates[gameId][msg.sender].currentAttempt
         );
     }
@@ -269,6 +287,7 @@ contract Equle is Ownable {
         FHE.allowThis(gameEquation[gameId]);
         FHE.allowThis(gameResult[gameId]);
     }
+
 
     function hasPlayerWon(uint256 gameId, address player) external view returns (bool) {
       return playerStates[gameId][player].hasWon;
@@ -320,7 +339,7 @@ contract Equle is Ownable {
     }
 
     function getCurrentGameId() public view returns (uint256) {
-        return ((block.timestamp - startTimestamp) / HOUR) + 1;
+        return ((block.timestamp - startTimestamp) / DAY) + 1;
     }
     
 }
