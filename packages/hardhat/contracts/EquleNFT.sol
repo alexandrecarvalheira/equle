@@ -2,25 +2,26 @@
 pragma solidity ^0.8.25;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import {ERC721URIStorage} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
-contract EquleNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
+contract EquleNFT is ERC721, ERC721URIStorage, Ownable {
     using Strings for uint256;
 
-    uint256 private _nextTokenId = 1;
+    uint256 public totalSupply = 0;
+    string public imgGif = ""; //ipfs img
 
     struct PlayerStats {
         uint256 totalWins;
         uint256 currentStreak;
         uint256 maxStreak;
+        uint256 lastGamePlayed;
     }
 
     mapping(address => PlayerStats) private playerStats;
     mapping(address => uint256) private playerTokenId;
-    mapping(address => uint256) private lastGamePlayed;
 
     event NFTMinted(
         address indexed player,
@@ -35,42 +36,43 @@ contract EquleNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
 
     constructor(
         address initialOwner
-    ) ERC721("Equle Champion", "EQCHAMP") Ownable(initialOwner) {}
+    ) ERC721("Equle Club", "EQCLUB") Ownable(initialOwner) {}
 
     function mintOrUpdateNFT(
         address player,
-        uint8 attempts
+        uint256 gameId
     ) external onlyOwner {
         bool hasExistingNFT = balanceOf(player) > 0;
 
         if (hasExistingNFT) {
-            _updatePlayerStats(player);
-            uint256 tokenId = playerTokenId[player];
-            _updateTokenURI(tokenId, player);
-            emit NFTUpdated(player, tokenId, playerStats[player]);
+            _updatePlayerStats(player, gameId);
+            _updateTokenURI(tokenId(player), player);
+            emit NFTUpdated(player, tokenId(player), playerStats[player]);
         } else {
-            _updatePlayerStats(player);
-            uint256 tokenId = _nextTokenId++;
-            playerTokenId[player] = tokenId;
-            _safeMint(player, tokenId);
-            _updateTokenURI(tokenId, player);
-            emit NFTMinted(player, tokenId, playerStats[player]);
+            _updatePlayerStats(player, gameId);
+            _safeMint(player, ++totalSupply);
+            playerTokenId[player] = totalSupply;
+            _updateTokenURI(tokenId(player), player);
+            emit NFTMinted(player, tokenId(player), playerStats[player]);
         }
     }
 
-    function _updatePlayerStats(address player) private {
+    function _updatePlayerStats(address player, uint256 gameId) private {
         PlayerStats storage stats = playerStats[player];
 
         stats.totalWins++;
-        stats.currentStreak++;
+
+        if (gameId - stats.lastGamePlayed == 1) {
+            stats.currentStreak++;
+        } else {
+            stats.currentStreak = 1;
+        }
+
         if (stats.currentStreak > stats.maxStreak) {
             stats.maxStreak = stats.currentStreak;
         }
-        if (won) {
-            stats.currentStreak = 0;
-        }
 
-        lastGamePlayed[player] = block.timestamp;
+        stats.lastGamePlayed = gameId;
     }
 
     function _updateTokenURI(uint256 tokenId, address player) private {
@@ -83,32 +85,34 @@ contract EquleNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     ) private view returns (string memory) {
         PlayerStats memory stats = playerStats[player];
 
-        return
-            string(
-                abi.encodePacked(
-                    "data:application/json;base64,",
-                    _encode(
-                        abi.encodePacked(
-                            '{"name":"Equle Champion #',
-                            tokenId(player).toString(),
-                            '",',
-                            '"description":"Victory NFT for Equle puzzle game champion",',
-                            '"image":"https://equle.game/images/champion.png",',
-                            '"attributes":[',
-                            '{"trait_type":"Total Wins","value":',
-                            stats.totalWins.toString(),
-                            "},",
-                            '{"trait_type":"Current Streak","value":',
-                            stats.currentStreak.toString(),
-                            "},",
-                            '{"trait_type":"Max Streak","value":',
-                            stats.maxStreak.toString(),
-                            "},",
-                            "]}"
-                        )
-                    )
-                )
-            );
+        string memory json = string.concat(
+            "{",
+            '"name": "',
+            name(),
+            " #",
+            tokenId(player).toString(),
+            '",',
+            '"description":"Victory NFT for Equle puzzle game",',
+            '"image": "',
+            "ipfs://",
+            imgGif,
+            '",',
+            '"attributes":[',
+            '{"trait_type":"Total Wins","value":',
+            stats.totalWins.toString(),
+            "},",
+            '{"trait_type":"Current Streak","value":',
+            stats.currentStreak.toString(),
+            "},",
+            '{"trait_type":"Max Streak","value":',
+            stats.maxStreak.toString(),
+            "}",
+            "]",
+            "}"
+        );
+
+        string memory base64Encoded = Base64.encode(bytes(json));
+        return string.concat("data:application/json;base64,", base64Encoded);
     }
 
     function tokenId(address player) public view returns (uint256) {
@@ -126,81 +130,19 @@ contract EquleNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
         return balanceOf(player) > 0;
     }
 
-    function _baseURI() internal pure override returns (string memory) {
-        return "https://equle.game/metadata/";
-    }
-
-    // Base64 encoding for metadata
-    function _encode(bytes memory data) private pure returns (string memory) {
-        if (data.length == 0) return "";
-
-        string
-            memory table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-        uint256 encodedLength = 4 * ((data.length + 2) / 3);
-        string memory result = new string(encodedLength + 32);
-
-        assembly {
-            let tablePtr := add(table, 1)
-            let dataPtr := add(data, 0x20)
-            let endPtr := add(dataPtr, mload(data))
-            let resultPtr := add(result, 0x20)
-
-            for {
-
-            } lt(dataPtr, endPtr) {
-
-            } {
-                dataPtr := add(dataPtr, 3)
-                let input := mload(dataPtr)
-
-                mstore8(
-                    resultPtr,
-                    mload(add(tablePtr, and(shr(18, input), 0x3F)))
-                )
-                resultPtr := add(resultPtr, 1)
-                mstore8(
-                    resultPtr,
-                    mload(add(tablePtr, and(shr(12, input), 0x3F)))
-                )
-                resultPtr := add(resultPtr, 1)
-                mstore8(
-                    resultPtr,
-                    mload(add(tablePtr, and(shr(6, input), 0x3F)))
-                )
-                resultPtr := add(resultPtr, 1)
-                mstore8(resultPtr, mload(add(tablePtr, and(input, 0x3F))))
-                resultPtr := add(resultPtr, 1)
-            }
-
-            switch mod(mload(data), 3)
-            case 1 {
-                mstore8(sub(resultPtr, 2), 0x3d)
-                mstore8(sub(resultPtr, 1), 0x3d)
-            }
-            case 2 {
-                mstore8(sub(resultPtr, 1), 0x3d)
-            }
-
-            mstore(result, encodedLength)
-        }
-
-        return result;
-    }
-
     // Required overrides
     function _update(
         address to,
         uint256 tokenId,
         address auth
-    ) internal override(ERC721, ERC721Enumerable) returns (address) {
+    ) internal override(ERC721) returns (address) {
         return super._update(to, tokenId, auth);
     }
 
     function _increaseBalance(
         address account,
         uint128 value
-    ) internal override(ERC721, ERC721Enumerable) {
+    ) internal override(ERC721) {
         super._increaseBalance(account, value);
     }
 
@@ -212,12 +154,7 @@ contract EquleNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
 
     function supportsInterface(
         bytes4 interfaceId
-    )
-        public
-        view
-        override(ERC721, ERC721Enumerable, ERC721URIStorage)
-        returns (bool)
-    {
+    ) public view override(ERC721, ERC721URIStorage) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }

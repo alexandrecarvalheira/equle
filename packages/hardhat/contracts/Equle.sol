@@ -5,19 +5,16 @@ import "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./EquleNFT.sol";
 
+//'0'..'9' -> 0..9, '+'->10, '-'->11, '*'->12, '/'->13
+//'0':0000 '1':0001 '2':0010 '3':0011 '4':0100 '5':0101 '6':0110 '7':0111
+//'8':1000 '9':1001 '+':1010 '-':1011 '*':1100 '/':1101
 
+//     [127...100][99...80][79...60][59...40][39...20][19...0]
+//       unused     rot4     rot3     rot2     rot1     rot0
 
-    //'0'..'9' -> 0..9, '+'->10, '-'->11, '*'->12, '/'->13
-    //'0':0000 '1':0001 '2':0010 '3':0011 '4':0100 '5':0101 '6':0110 '7':0111
-    //'8':1000 '9':1001 '+':1010 '-':1011 '*':1100 '/':1101
-
-    //     [127...100][99...80][79...60][59...40][39...20][19...0]
-    //       unused     rot4     rot3     rot2     rot1     rot0
-
-    // doubts on - euint events and AA for ACL
-    // better pattern to have more storage on FHE results, or redo FHE on-demand?
-    // needs improvement on ownership
-
+// doubts on - euint events and AA for ACL
+// better pattern to have more storage on FHE results, or redo FHE on-demand?
+// needs improvement on ownership
 
 /**
  * @title Equle
@@ -27,15 +24,12 @@ import "./EquleNFT.sol";
  *      The game uses FHE to maintain privacy of equations and results while allowing gameplay verification.
  */
 contract Equle is Ownable {
-
-    
     //ERRORS
-    
+
     error MaxAttemptsReached(uint8 currentAttempts);
     error GameAlreadyWon(address player, uint256 gameId);
     error NoAttemptsYet(address player, uint256 gameId);
     error DecryptionNotReady(address player, uint256 gameId);
-
 
     //STATE VARIABLES
 
@@ -45,7 +39,7 @@ contract Equle is Ownable {
     euint16 public ZERO;
     euint16 public ONE;
     euint16 public TWO;
-    
+
     EquleNFT public equleNFT;
 
     struct AttemptData {
@@ -56,19 +50,21 @@ contract Equle is Ownable {
     }
 
     struct PlayerGameState {
-        uint8 currentAttempt;          // Current attempt count
-        bool hasWon;                   // Whether player has won
+        uint8 currentAttempt; // Current attempt count
+        bool hasWon; // Whether player has won
     }
 
     //mapping: gameid -> playerAddress -> attemptNumber -> attempt data
-    mapping(uint256 => mapping(address => mapping(uint8 => AttemptData))) private attemptData;
+    mapping(uint256 => mapping(address => mapping(uint8 => AttemptData)))
+        private attemptData;
     //mapping: gameid -> playerAddress-> player game state
-    mapping(uint256 => mapping(address => PlayerGameState)) private playerStates;
+    mapping(uint256 => mapping(address => PlayerGameState))
+        private playerStates;
     // mapping:gameid -> result (target result as euint for privacy)
     mapping(uint256 => euint16) public gameResult;
     // mapping: gameid -> equation
     mapping(uint256 => euint128) public gameEquation;
-    
+
     //EVENTS
 
     event GuessSubmitted(
@@ -98,7 +94,6 @@ contract Equle is Ownable {
         uint8 attempts
     );
 
-
     constructor() Ownable(msg.sender) {
         startTimestamp = block.timestamp;
         ZERO = FHE.asEuint16(0);
@@ -119,7 +114,10 @@ contract Equle is Ownable {
      * @param equationGuess The encrypted equation guess from the player
      * @param resultGuess The encrypted result guess from the player
      */
-    function guess(InEuint128 memory equationGuess, InEuint16 memory resultGuess) public {
+    function guess(
+        InEuint128 memory equationGuess,
+        InEuint16 memory resultGuess
+    ) public {
         uint256 gameId = getCurrentGameId();
         euint128 eqGuess = FHE.asEuint128(equationGuess);
         euint16 result = FHE.asEuint16(resultGuess);
@@ -135,8 +133,7 @@ contract Equle is Ownable {
             revert GameAlreadyWon(msg.sender, gameId);
         }
 
-
-        //FHE operation 
+        //FHE operation
         euint128 equationXor = FHE.xor(eqGuess, gameEquation[gameId]);
 
         // result check
@@ -156,7 +153,7 @@ contract Equle is Ownable {
 
         FHE.allowSender(result);
         FHE.allowThis(result);
-        
+
         FHE.allowSender(equationXor);
         FHE.allowThis(equationXor);
 
@@ -170,10 +167,8 @@ contract Equle is Ownable {
             equationXor,
             resultFeedback
         );
-
-    
     }
-    
+
     /**
      * @notice Compares user's result guess with the target result
      * @dev Returns 0 for correct, 1 for too low, 2 for too high (like Wordle feedback)
@@ -181,14 +176,16 @@ contract Equle is Ownable {
      * @param targetResult The encrypted target result
      * @return resultAnswer Encrypted comparison result (0=correct, 1=too low, 2=too high)
      */
-    function _resultCheck(euint16 userGuess, euint16 targetResult) private returns(euint16 resultAnswer) {
+    function _resultCheck(
+        euint16 userGuess,
+        euint16 targetResult
+    ) private returns (euint16 resultAnswer) {
         // eq = 0, lt = 1 , gt = 2
-      ebool isEqual = FHE.eq(userGuess, targetResult);
-      ebool userIsLower = FHE.lt(userGuess, targetResult);
-      
-      return FHE.select(isEqual, ZERO, FHE.select(userIsLower, ONE, TWO));
-    }
+        ebool isEqual = FHE.eq(userGuess, targetResult);
+        ebool userIsLower = FHE.lt(userGuess, targetResult);
 
+        return FHE.select(isEqual, ZERO, FHE.select(userIsLower, ONE, TWO));
+    }
 
     /**
      * @notice Initiates decryption of the player's last equation XOR result
@@ -196,7 +193,7 @@ contract Equle is Ownable {
      */
     function finalizeGame() public {
         uint256 gameId = getCurrentGameId();
-        
+
         if (playerStates[gameId][msg.sender].currentAttempt == 0) {
             revert NoAttemptsYet(msg.sender, gameId);
         }
@@ -204,11 +201,12 @@ contract Equle is Ownable {
         if (playerStates[gameId][msg.sender].hasWon) {
             revert GameAlreadyWon(msg.sender, gameId);
         }
-        
+
         uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
 
         // Get the last attempt's XOR result
-        euint128 lastEquationXor = attemptData[gameId][msg.sender][lastAttempt].equationXor;
+        euint128 lastEquationXor = attemptData[gameId][msg.sender][lastAttempt]
+            .equationXor;
         FHE.decrypt(lastEquationXor);
 
         emit GameFinalized(msg.sender, gameId, lastAttempt);
@@ -216,7 +214,7 @@ contract Equle is Ownable {
 
     function getDecryptedfinalizedEquation() public view returns (uint128) {
         uint256 gameId = getCurrentGameId();
-        
+
         if (playerStates[gameId][msg.sender].currentAttempt == 0) {
             revert NoAttemptsYet(msg.sender, gameId);
         }
@@ -224,9 +222,12 @@ contract Equle is Ownable {
         uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
 
         // Get the last attempt's XOR result
-        euint128 lastEquationXor = attemptData[gameId][msg.sender][lastAttempt].equationXor;
+        euint128 lastEquationXor = attemptData[gameId][msg.sender][lastAttempt]
+            .equationXor;
 
-        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(lastEquationXor);
+        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(
+            lastEquationXor
+        );
         if (!decrypted) {
             revert DecryptionNotReady(msg.sender, gameId);
         }
@@ -240,17 +241,24 @@ contract Equle is Ownable {
      */
     function ClaimVictory() public {
         uint256 gameId = getCurrentGameId();
-        
+
         if (playerStates[gameId][msg.sender].currentAttempt == 0) {
             revert NoAttemptsYet(msg.sender, gameId);
+        }
+
+        if (playerStates[gameId][msg.sender].hasWon) {
+            revert GameAlreadyWon(msg.sender, gameId);
         }
 
         uint8 lastAttempt = playerStates[gameId][msg.sender].currentAttempt - 1;
 
         // Get the last attempt's XOR result
-        euint128 lastEquationXor = attemptData[gameId][msg.sender][lastAttempt].equationXor;
+        euint128 lastEquationXor = attemptData[gameId][msg.sender][lastAttempt]
+            .equationXor;
 
-        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(lastEquationXor);
+        (uint128 value, bool decrypted) = FHE.getDecryptResultSafe(
+            lastEquationXor
+        );
         if (!decrypted) {
             revert DecryptionNotReady(msg.sender, gameId);
         }
@@ -262,13 +270,17 @@ contract Equle is Ownable {
 
         // Handle NFT minting/updating for victory
         if (hasWon) {
-            equleNFT.mintOrUpdateNFT(msg.sender, playerStates[gameId][msg.sender].currentAttempt);
-            emit NFTMinted(msg.sender, gameId, playerStates[gameId][msg.sender].currentAttempt);
+            equleNFT.mintOrUpdateNFT(msg.sender, gameId);
+            emit NFTMinted(
+                msg.sender,
+                gameId,
+                playerStates[gameId][msg.sender].currentAttempt
+            );
         }
 
         emit GameCompleted(
-            msg.sender, 
-            gameId, 
+            msg.sender,
+            gameId,
             hasWon,
             playerStates[gameId][msg.sender].currentAttempt
         );
@@ -281,55 +293,80 @@ contract Equle is Ownable {
      * @param equation The encrypted target equation
      * @param result The encrypted target result
      */
-    function setGame(uint256 gameId, InEuint128 memory equation, InEuint16 memory result) external onlyOwner {
+    function setGame(
+        uint256 gameId,
+        InEuint128 memory equation,
+        InEuint16 memory result
+    ) external onlyOwner {
         gameEquation[gameId] = FHE.asEuint128(equation);
         gameResult[gameId] = FHE.asEuint16(result);
         FHE.allowThis(gameEquation[gameId]);
         FHE.allowThis(gameResult[gameId]);
     }
 
-
-    function hasPlayerWon(uint256 gameId, address player) external view returns (bool) {
-      return playerStates[gameId][player].hasWon;
+    function hasPlayerWon(
+        uint256 gameId,
+        address player
+    ) external view returns (bool) {
+        return playerStates[gameId][player].hasWon;
     }
 
-    function getPlayerAttempts(uint256 gameId, address player) external view returns (uint8) {
-      return playerStates[gameId][player].currentAttempt;
+    function getPlayerAttempts(
+        uint256 gameId,
+        address player
+    ) external view returns (uint8) {
+        return playerStates[gameId][player].currentAttempt;
     }
 
-    function getPlayerLastEquationGuess(uint256 gameId, address player) external view returns (euint128) {
+    function getPlayerLastEquationGuess(
+        uint256 gameId,
+        address player
+    ) external view returns (euint128) {
         uint8 lastAttempt = playerStates[gameId][player].currentAttempt - 1;
         return attemptData[gameId][player][lastAttempt].equationGuess;
     }
 
-    function getPlayerLastResultGuess(uint256 gameId, address player) external view returns (euint16) {
+    function getPlayerLastResultGuess(
+        uint256 gameId,
+        address player
+    ) external view returns (euint16) {
         uint8 lastAttempt = playerStates[gameId][player].currentAttempt - 1;
         return attemptData[gameId][player][lastAttempt].resultGuess;
     }
 
-    function getPlayerEquationXor(uint256 gameId, address player) external view returns (euint128) {
+    function getPlayerEquationXor(
+        uint256 gameId,
+        address player
+    ) external view returns (euint128) {
         uint8 lastAttempt = playerStates[gameId][player].currentAttempt - 1;
         return attemptData[gameId][player][lastAttempt].equationXor;
     }
 
-    function getPlayerGameState(uint256 gameId, address player) external view returns (
-        uint8 currentAttempt,
-        bool hasWon
-    ) {
+    function getPlayerGameState(
+        uint256 gameId,
+        address player
+    ) external view returns (uint8 currentAttempt, bool hasWon) {
         PlayerGameState storage state = playerStates[gameId][player];
-        return (
-            state.currentAttempt,
-            state.hasWon
-        );
+        return (state.currentAttempt, state.hasWon);
     }
 
-    function getPlayerAttempt(uint256 gameId, address player, uint8 attemptNumber) external view returns (
-        euint128 equationGuess,
-        euint16 resultGuess,
-        euint128 equationXor,
-        euint16 resultFeedback
-    ) {
-        AttemptData storage attempt = attemptData[gameId][player][attemptNumber];
+    function getPlayerAttempt(
+        uint256 gameId,
+        address player,
+        uint8 attemptNumber
+    )
+        external
+        view
+        returns (
+            euint128 equationGuess,
+            euint16 resultGuess,
+            euint128 equationXor,
+            euint16 resultFeedback
+        )
+    {
+        AttemptData storage attempt = attemptData[gameId][player][
+            attemptNumber
+        ];
         return (
             attempt.equationGuess,
             attempt.resultGuess,
@@ -341,5 +378,4 @@ contract Equle is Ownable {
     function getCurrentGameId() public view returns (uint256) {
         return ((block.timestamp - startTimestamp) / DAY) + 1;
     }
-    
 }
