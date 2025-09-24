@@ -41,7 +41,7 @@ export function usePermit(currentGameId?: number | null) {
 
       const permitName = `equle${currentGameId || ""}`;
       const expirationDate = new Date();
-      expirationDate.setDate(expirationDate.getDate() + 1); // 1 day expiration
+      expirationDate.setDate(expirationDate.getDate() + 30); // 1 day expiration
 
       const result = await cofhejs.createPermit({
         type: "self",
