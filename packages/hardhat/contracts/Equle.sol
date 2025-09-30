@@ -270,7 +270,7 @@ contract Equle is Ownable {
 
         // Handle NFT minting/updating for victory
         if (hasWon) {
-            equleNFT.mintOrUpdateNFT(msg.sender, gameId);
+            equleNFT.mintOrUpdateNFT(msg.sender, gameId, lastAttempt + 1);
             emit NFTMinted(
                 msg.sender,
                 gameId,
