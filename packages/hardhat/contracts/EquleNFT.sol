@@ -28,7 +28,6 @@ contract EquleNFT is ERC721, ERC721URIStorage, Ownable, IERC5192 {
     error TokenIsSoulbound();
 
     uint256 public totalSupply = 0;
-    string public imgGif = ""; //ipfs img
 
     struct PlayerStats {
         uint256 totalWins;
@@ -61,7 +60,10 @@ contract EquleNFT is ERC721, ERC721URIStorage, Ownable, IERC5192 {
         uint256 gameId,
         uint8 winningAttempt
     ) external onlyOwner {
-        require(winningAttempt >= 1 && winningAttempt <= 6, "Invalid attempt: must be 1-6");
+        require(
+            winningAttempt >= 1 && winningAttempt <= 6,
+            "Invalid attempt: must be 1-6"
+        );
         bool hasExistingNFT = balanceOf(player) > 0;
 
         if (hasExistingNFT) {
@@ -78,7 +80,11 @@ contract EquleNFT is ERC721, ERC721URIStorage, Ownable, IERC5192 {
         }
     }
 
-    function _updatePlayerStats(address player, uint256 gameId, uint8 winningAttempt) private {
+    function _updatePlayerStats(
+        address player,
+        uint256 gameId,
+        uint8 winningAttempt
+    ) private {
         PlayerStats storage stats = playerStats[player];
 
         stats.totalWins++;
@@ -123,6 +129,7 @@ contract EquleNFT is ERC721, ERC721URIStorage, Ownable, IERC5192 {
         address player
     ) private view returns (string memory) {
         PlayerStats memory stats = playerStats[player];
+        string memory svg = _generateSVG(stats, tokenId(player));
 
         string memory json = string.concat(
             "{",
@@ -131,10 +138,9 @@ contract EquleNFT is ERC721, ERC721URIStorage, Ownable, IERC5192 {
             " #",
             tokenId(player).toString(),
             '",',
-            '"description":"Victory NFT for Equle puzzle game",',
-            '"image": "',
-            "ipfs://",
-            imgGif,
+            '"description":"Victory NFT for Equle puzzle game. A fully on-chain, dynamic achievement badge that evolves with your stats.",',
+            '"image": "data:image/svg+xml;base64,',
+            Base64.encode(bytes(svg)),
             '",',
             '"attributes":[',
             '{"trait_type":"Total Wins","value":',
@@ -155,6 +161,93 @@ contract EquleNFT is ERC721, ERC721URIStorage, Ownable, IERC5192 {
 
         string memory base64Encoded = Base64.encode(bytes(json));
         return string.concat("data:application/json;base64,", base64Encoded);
+    }
+
+
+    function _generateSVG(
+        PlayerStats memory stats,
+        uint256 nftTokenId
+    ) private pure returns (string memory) {
+        string memory svg = string.concat(
+            '<svg width="500" height="500" xmlns="http://www.w3.org/2000/svg">',
+            "<defs>",
+            '<linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">',
+            '<stop offset="0%" style="stop-color:#011623;stop-opacity:1" />',
+            '<stop offset="100%" style="stop-color:#002033;stop-opacity:1" />',
+            "</linearGradient>",
+            '<linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">',
+            '<stop offset="0%" style="stop-color:#0AD9DC;stop-opacity:0.2" />',
+            '<stop offset="100%" style="stop-color:#0AD9DC;stop-opacity:0" />',
+            "</linearGradient>",
+            "</defs>",
+            '<rect width="500" height="500" fill="url(#bg)" />',
+            '<rect width="500" height="500" fill="url(#accent)" />',
+            '<rect x="10" y="10" width="480" height="480" fill="none" stroke="#0AD9DC" stroke-width="2" rx="15" />',
+            '<text x="250" y="50" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#0AD9DC" text-anchor="middle">EQULE CLUB</text>',
+            '<text x="250" y="75" font-family="Arial, sans-serif" font-size="16" fill="#ededed" text-anchor="middle">#',
+            nftTokenId.toString(),
+            "</text>",
+            '<text x="250" y="140" font-family="Arial, sans-serif" font-size="14" fill="#ededed" text-anchor="middle" opacity="0.7">TOTAL WINS</text>',
+            '<text x="250" y="170" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#0AD9DC" text-anchor="middle">',
+            stats.totalWins.toString(),
+            "</text>",
+            '<text x="150" y="215" font-family="Arial, sans-serif" font-size="12" fill="#ededed" text-anchor="middle" opacity="0.7">CURRENT STREAK</text>',
+            '<text x="150" y="240" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#1CE07E" text-anchor="middle">',
+            stats.currentStreak.toString(),
+            "</text>",
+            '<text x="350" y="215" font-family="Arial, sans-serif" font-size="12" fill="#ededed" text-anchor="middle" opacity="0.7">MAX STREAK</text>',
+            '<text x="350" y="240" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#eab308" text-anchor="middle">',
+            stats.maxStreak.toString(),
+            "</text>",
+            '<text x="250" y="280" font-family="Arial, sans-serif" font-size="14" fill="#ededed" text-anchor="middle" opacity="0.7">GUESS DISTRIBUTION</text>'
+        );
+
+        // Distribution bars
+        if (stats.totalWins == 0) {
+            svg = string.concat(
+                svg,
+                '<text x="250" y="330" font-family="Arial, sans-serif" font-size="12" fill="#ededed" text-anchor="middle" opacity="0.5">No games played yet</text>'
+            );
+        } else {
+            for (uint256 i = 0; i < 6; i++) {
+                uint256 percentage = (stats.guessDistribution[i] * 100) / stats.totalWins;
+                uint256 barWidth = (percentage * 180) / 100;
+                uint256 yPos = 300 + (i * 20);
+
+                svg = string.concat(
+                    svg,
+                    '<text x="80" y="',
+                    (yPos + 12).toString(),
+                    '" font-family="Arial, sans-serif" font-size="12" fill="#ededed">',
+                    (i + 1).toString(),
+                    '</text><rect x="100" y="',
+                    yPos.toString(),
+                    '" width="180" height="14" fill="#1D4748" opacity="0.3" rx="2" />'
+                );
+
+                if (barWidth > 0) {
+                    svg = string.concat(
+                        svg,
+                        '<rect x="100" y="',
+                        yPos.toString(),
+                        '" width="',
+                        barWidth.toString(),
+                        '" height="14" fill="#0AD9DC" rx="2" />'
+                    );
+                }
+
+                svg = string.concat(
+                    svg,
+                    '<text x="290" y="',
+                    (yPos + 11).toString(),
+                    '" font-family="Arial, sans-serif" font-size="11" fill="#ededed" opacity="0.8">',
+                    percentage.toString(),
+                    '%</text>'
+                );
+            }
+        }
+
+        return string.concat(svg, "</svg>");
     }
 
     function tokenId(address player) public view returns (uint256) {
