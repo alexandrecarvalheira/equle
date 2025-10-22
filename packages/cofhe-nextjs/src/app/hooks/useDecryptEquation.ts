@@ -98,11 +98,11 @@ export function useDecryptEquation(address?: `0x${string}`) {
       writeContract({
         address: CONTRACT_ADDRESS as `0x${string}`,
         abi: CONTRACT_ABI,
-        functionName: "DecryptfinalizedEquation",
+        functionName: "ClaimVictory",
         args: [],
       });
     } catch (error) {
-      setFinalizeMessage("Error claiming victory. Please try again.");
+      setFinalizeMessage("Error claiming victory NFT. Please try again.");
       setTimeout(() => setFinalizeMessage(""), 5000);
       setEndGameState("can-claim");
     }
@@ -144,7 +144,9 @@ export function useDecryptEquation(address?: `0x${string}`) {
       decryptedEquation !== "0x0000000000000000000000000000000000000000"
     ) {
       // Step 2 complete → Step 3: Ready to claim
-      console.log("✅ Decrypted equation found! Transitioning to can-claim state");
+      console.log(
+        "✅ Decrypted equation found! Transitioning to can-claim state"
+      );
       setEndGameState("can-claim");
       setFinalizeMessage("Equation ready! Claim your victory.");
     }
@@ -155,7 +157,7 @@ export function useDecryptEquation(address?: `0x${string}`) {
     if (endGameState !== "decrypting") return;
 
     console.log("🔄 Starting polling for decrypted equation...");
-    
+
     const pollInterval = setInterval(async () => {
       console.log("📡 Polling attempt for decrypted equation...");
       try {
@@ -163,7 +165,9 @@ export function useDecryptEquation(address?: `0x${string}`) {
         console.log("📡 Poll result:", {
           data: result.data,
           hasData: !!result.data,
-          isValid: result.data !== "0x" && result.data !== "0x0000000000000000000000000000000000000000"
+          isValid:
+            result.data !== "0x" &&
+            result.data !== "0x0000000000000000000000000000000000000000",
         });
       } catch (error) {
         console.error("❌ Error polling for decrypted equation:", error);
@@ -219,7 +223,10 @@ export function useDecryptEquation(address?: `0x${string}`) {
   useEffect(() => {
     // Don't override if we're already in an active endgame flow
     if (endGameState !== "idle") {
-      console.log("🚫 Skipping initial state check - endgame flow already active:", endGameState);
+      console.log(
+        "🚫 Skipping initial state check - endgame flow already active:",
+        endGameState
+      );
       return;
     }
 
