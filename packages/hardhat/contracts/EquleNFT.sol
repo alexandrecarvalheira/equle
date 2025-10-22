@@ -28,7 +28,8 @@ contract EquleNFT is ERC721, ERC721URIStorage, Ownable, IERC5192 {
     error TokenIsSoulbound();
 
     uint256 public totalSupply = 0;
-    string public img = ""; //ipfs img
+    string public img =
+        "bafybeibre5fn2rfk3fazyqfncs7qbw7b4ry57brezgi73kxtkim744oxum"; //ipfs img
 
     struct PlayerStats {
         uint256 totalWins;
