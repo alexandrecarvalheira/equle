@@ -12,9 +12,11 @@ export async function GET() {
   const URL = process.env.NEXT_PUBLIC_URL as string;
   return Response.json({
     accountAssociation: {
-      header: process.env.FARCASTER_HEADER,
-      payload: process.env.FARCASTER_PAYLOAD,
-      signature: process.env.FARCASTER_SIGNATURE,
+      header:
+        "eyJmaWQiOjg4MDI1MywidHlwZSI6ImF1dGgiLCJrZXkiOiIweGM4NWExOThhRDI5YTk3QTlFYUFjMGVFNUY4ZjE5NEJjNDE1M2RFNjgifQ",
+      payload: "eyJkb21haW4iOiJlcXVsZS52ZXJjZWwuYXBwIn0",
+      signature:
+        "srW1vEgOEYonbGqG70yHLNN0o5OhJB2jJr1UncY4hcM6S6Tcup1Vj8qmQVfOyk9IHWxAh7SVwdZybZyG/gWU1Bs=",
     },
     frame: withValidProperties({
       version: "1",
