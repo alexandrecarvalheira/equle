@@ -39,7 +39,8 @@ export async function GET() {
       noindex: "false",
     }),
     baseBuilder: {
-      allowedAddresses: ["0x8a261c0b365352AAd3eeB6cfeca9CD1382478b97"],
+      allowedAddresses: ["0x04beb550D7fF404E7bF4819B0b47a2B1711cDFfa"],
+      ownerAddress: "0x04beb550D7fF404E7bF4819B0b47a2B1711cDFfa",
     },
   });
 }
