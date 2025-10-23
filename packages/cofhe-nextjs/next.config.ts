@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
       {
         source: "/.well-known/farcaster.json",
         destination:
-          "https://api.farcaster.xyz/miniapps/hosted-manifest/01995ce2-90c7-b0a7-e100-047a90bc4b2c",
+          "https://api.farcaster.xyz/miniapps/hosted-manifest/019a0efd-67f5-341b-34b8-32987f42a3c9",
         permanent: false,
       },
     ];
