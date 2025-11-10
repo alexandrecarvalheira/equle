@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@coinbase/onchainkit": "^1.0.2",
+    "@farcaster/miniapp-sdk": "^0.2.1",
     "@fhenixprotocol/cofhe-contracts": "^0.0.13"
   }
 }
