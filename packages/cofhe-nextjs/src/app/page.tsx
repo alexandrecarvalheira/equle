@@ -9,6 +9,7 @@ import { MonitorFrame } from "./components/MonitorFrame";
 import { Footer } from "./components/Footer";
 import { useAccount } from "wagmi";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { Navbar } from "./components/Navbar";
 import { useCofheStore } from "./store/cofheStore";
 import { useCurrentGameId } from "./hooks/useCurrentGameId";
@@ -39,6 +40,22 @@ export default function Home() {
     validateAndSync,
   } = useGameStateValidator(address, currentGameId);
   const [showFHE, setShowFHE] = useState(false);
+
+  useEffect(() => {
+    const initializeMiniApp = async () => {
+      if (!isFrameReady) {
+        setFrameReady();
+
+        try {
+          await sdk.actions.addMiniApp();
+        } catch (error) {
+          // Silently handle error
+        }
+      }
+    };
+
+    initializeMiniApp();
+  }, [isFrameReady, setFrameReady]);
 
   // Trigger sync when permit becomes available
   useEffect(() => {
@@ -72,12 +89,6 @@ export default function Home() {
       console.log("Permit removed successfully");
     }
   };
-
-  useEffect(() => {
-    if (!isFrameReady) {
-      setFrameReady();
-    }
-  }, [isFrameReady, setFrameReady]);
 
   return (
     <div
