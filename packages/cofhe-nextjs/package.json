@@ -11,6 +11,7 @@
   "dependencies": {
     "@coinbase/onchainkit": "^1.0.2",
     "@farcaster/frame-sdk": "^0.1.9",
+    "@farcaster/miniapp-sdk": "^0.2.1",
     "@farcaster/miniapp-wagmi-connector": "^1.0.0",
     "@farcaster/quick-auth": "^0.0.7",
     "@rainbow-me/rainbowkit": "^2.2.8",
