@@ -13,10 +13,10 @@ export async function GET() {
   return Response.json({
     accountAssociation: {
       header:
-        "eyJmaWQiOjg4MDI1MywidHlwZSI6ImF1dGgiLCJrZXkiOiIweGM4NWExOThhRDI5YTk3QTlFYUFjMGVFNUY4ZjE5NEJjNDE1M2RFNjgifQ",
-      payload: "eyJkb21haW4iOiJlcXVsZS52ZXJjZWwuYXBwIn0",
+        "eyJmaWQiOjI1MTQzMywidHlwZSI6ImF1dGgiLCJrZXkiOiIweDJFMTMwMDI4OWU1MzI3OTc0MGExNGI2MjNFQWU0YzBhYUNDRTFiRjcifQ",
+      payload: "Jkb21haW4iOiJlcXVsZS5maGVuaXguaW8ifQ",
       signature:
-        "srW1vEgOEYonbGqG70yHLNN0o5OhJB2jJr1UncY4hcM6S6Tcup1Vj8qmQVfOyk9IHWxAh7SVwdZybZyG/gWU1Bs=",
+        "qMqBOFpqpBzhYhmbwGcrNCgpzNyaXw6mEF/83jCED7w0x/ALvwfior7euadf8QFAV65gAC2XoXvG3ZlvrtTv2Rw=",
     },
     frame: withValidProperties({
       version: "1",
