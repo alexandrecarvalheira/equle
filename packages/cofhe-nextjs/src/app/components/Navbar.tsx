@@ -74,7 +74,10 @@ export function Navbar() {
           <div className="flex items-center justify-end overflow-visible">
             <div className="relative z-50">
               <Wallet>
-                <ConnectWallet />
+                <ConnectWallet>
+                  <Avatar className="hidden " />
+                  <Name />
+                </ConnectWallet>
                 <WalletDropdown>
                   <Identity hasCopyAddressOnClick>
                     <Avatar />
