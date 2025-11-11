@@ -1,0 +1,32 @@
+{
+    "miniapp": {
+      "name": "Equle",
+      "tags": [
+        "privacy",
+        "fhenix",
+        "fhe",
+        "wordle",
+        "numberle"
+      ],
+      "homeUrl": "https://equle.fhenix.io",
+      "iconUrl": "https://equle.fhenix.io/icon.png",
+      "tagline": "Play instantly",
+      "version": "1",
+      "subtitle": "Fhe math expression",
+      "webhookUrl": "https://equle.fhenix.io",
+      "buttonTitle": "Launch Equle",
+      "description": "find the encrypted math expression",
+      "heroImageUrl": "https://equle.fhenix.io/og.png",
+      "splashImageUrl": "https://equle.fhenix.io/icon.png",
+      "primaryCategory": "games",
+      "splashBackgroundColor": "#001623"
+    },
+    "accountAssociation": {
+      "header": "eyJmaWQiOjI1MTQzMywidHlwZSI6ImF1dGgiLCJrZXkiOiIweDJFMTMwMDI4OWU1MzI3OTc0MGExNGI2MjNFQWU0YzBhYUNDRTFiRjcifQ",
+      "payload": "eyJkb21haW4iOiJlcXVsZS5maGVuaXguaW8ifQ",
+      "signature": "qMqBOFpqpBzhYhmbwGcrNCgpzNyaXw6mEF/83jCED7w0x/ALvwfior7euadf8QFAV65gAC2XoXvG3ZlvrtTv2Rw="
+    },
+    "baseBuilder": {
+        "ownerAddress": "0x04beb550D7fF404E7bF4819B0b47a2B1711cDFfa"
+      }
+  }
